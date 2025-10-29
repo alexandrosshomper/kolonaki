@@ -75,15 +75,7 @@ export default function AccountForm({ user }) {
           onChange={(e) => setFullname(e.target.value)}
         />
       </div>
-      <Avatar
-        uid={user?.id}
-        url={avatar_url}
-        size={150}
-        onUpload={(url) => {
-          setAvatarUrl(url);
-          updateProfile({ fullname, username, website, avatar_url: url });
-        }}
-      />
+
       <div>
         <label htmlFor="username">Username</label>
         <input
@@ -102,15 +94,6 @@ export default function AccountForm({ user }) {
           onChange={(e) => setWebsite(e.target.value)}
         />
       </div>
-      <Avatar
-        uid={user?.id}
-        url={avatar_url}
-        size={150}
-        onUpload={(url) => {
-          setAvatarUrl(url);
-          updateProfile({ fullname, username, website, avatar_url: url });
-        }}
-      />
 
       <div>
         <button

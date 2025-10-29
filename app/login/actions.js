@@ -18,7 +18,17 @@ export async function login(formData) {
   const { error } = await supabase.auth.signInWithPassword(data);
 
   if (error) {
-    redirect("/error");
+    console.error("Supabase login error:", error);
+
+    const errorDetails = new URLSearchParams({
+      message: error.message ?? "Unable to log in right now.",
+    });
+
+    if (error.status) {
+      errorDetails.set("status", String(error.status));
+    }
+
+    redirect(`/error?${errorDetails.toString()}`);
   }
 
   revalidatePath("/", "layout");
@@ -35,7 +45,17 @@ export async function signup(formData) {
   const { error } = await supabase.auth.signUp(data);
 
   if (error) {
-    redirect("/error");
+    console.error("Supabase signup error:", error);
+
+    const errorDetails = new URLSearchParams({
+      message: error.message ?? "Unable to sign up right now.",
+    });
+
+    if (error.status) {
+      errorDetails.set("status", String(error.status));
+    }
+
+    redirect(`/error?${errorDetails.toString()}`);
   }
 
   revalidatePath("/", "layout");
