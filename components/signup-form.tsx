@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useFormState } from "react-dom";
+import { useActionState, useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
@@ -29,7 +28,7 @@ export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [state, formAction] = useFormState<SignupFormState, FormData>(
+  const [state, formAction] = useActionState<SignupFormState, FormData>(
     signup,
     initialState
   );

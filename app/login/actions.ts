@@ -55,7 +55,7 @@ const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
 
 export async function signup(
   prevState: SignupFormState,
-  formData: FormData,
+  formData: FormData
 ): Promise<SignupFormState> {
   const email = formData.get("email");
   const password = formData.get("password");
@@ -66,10 +66,7 @@ export async function signup(
   const confirmPasswordMismatchMessage =
     "Confirm password did not match the password.";
 
-  const emailValue =
-    typeof email === "string"
-      ? email
-      : prevState.email;
+  const emailValue = typeof email === "string" ? email : prevState.email;
 
   if (typeof password !== "string" || typeof confirmPassword !== "string") {
     return {
