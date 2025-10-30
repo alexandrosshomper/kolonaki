@@ -44,6 +44,11 @@ export async function signup(prevState, formData) {
   const password = formData.get("password");
   const confirmPassword = formData.get("confirm-password");
 
+  const passwordTooShortMessage =
+    "Password too short. Password needs to be at least 8 characters long.";
+  const confirmPasswordMismatchMessage =
+    "Confirm password did not match the password.";
+
   const emailValue =
     typeof email === "string"
       ? email
@@ -56,14 +61,31 @@ export async function signup(prevState, formData) {
       status: "error",
       message: "Password and confirmation are required.",
       email: emailValue,
+      passwordStatus: "error",
+      confirmPasswordStatus: "error",
+      shouldResetPasswords: true,
+    };
+  }
+
+  if (password.length < 8) {
+    return {
+      status: "error",
+      message: passwordTooShortMessage,
+      email: emailValue,
+      passwordStatus: "error",
+      confirmPasswordStatus: "idle",
+      shouldResetPasswords: true,
     };
   }
 
   if (password !== confirmPassword) {
     return {
       status: "error",
-      message: "Passwords do not match.",
+      message: confirmPasswordMismatchMessage,
       email: emailValue,
+      passwordStatus: "success",
+      confirmPasswordStatus: "error",
+      shouldResetPasswords: true,
     };
   }
 
@@ -83,6 +105,9 @@ export async function signup(prevState, formData) {
       status: "error",
       message: error.message ?? "Unable to sign up right now.",
       email: emailValue,
+      passwordStatus: "success",
+      confirmPasswordStatus: "success",
+      shouldResetPasswords: false,
     };
   }
 
@@ -92,5 +117,8 @@ export async function signup(prevState, formData) {
     status: "success",
     message: null,
     email: "",
+    passwordStatus: "success",
+    confirmPasswordStatus: "success",
+    shouldResetPasswords: false,
   };
 }

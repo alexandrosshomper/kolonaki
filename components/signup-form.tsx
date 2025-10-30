@@ -15,16 +15,24 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
+type FieldStatus = "idle" | "error" | "success";
+
 type SignupFormState = {
   status: "idle" | "error" | "success";
   message: string | null;
   email: string;
+  passwordStatus: FieldStatus;
+  confirmPasswordStatus: FieldStatus;
+  shouldResetPasswords: boolean;
 };
 
 const initialState: SignupFormState = {
   status: "idle",
   message: null,
   email: "",
+  passwordStatus: "idle",
+  confirmPasswordStatus: "idle",
+  shouldResetPasswords: false,
 };
 
 export function SignupForm({
@@ -33,10 +41,36 @@ export function SignupForm({
 }: React.ComponentProps<"div">) {
   const [state, formAction] = useFormState<SignupFormState>(signup, initialState);
   const [email, setEmail] = useState(initialState.email);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
     setEmail(state.email);
   }, [state.email]);
+
+  useEffect(() => {
+    if (state.shouldResetPasswords || state.status === "success") {
+      setPassword("");
+      setConfirmPassword("");
+    }
+  }, [state.shouldResetPasswords, state.status]);
+
+  const passwordStatus = state.passwordStatus ?? "idle";
+  const confirmPasswordStatus = state.confirmPasswordStatus ?? "idle";
+
+  const passwordClasses =
+    passwordStatus === "error"
+      ? "border-destructive focus-visible:border-destructive"
+      : passwordStatus === "success"
+        ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
+        : undefined;
+
+  const confirmPasswordClasses =
+    confirmPasswordStatus === "error"
+      ? "border-destructive focus-visible:border-destructive"
+      : confirmPasswordStatus === "success"
+        ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
+        : undefined;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -84,6 +118,10 @@ export function SignupForm({
                       name="password"
                       type="password"
                       required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      aria-invalid={passwordStatus === "error" || undefined}
+                      className={passwordClasses}
                     />
                   </Field>
                   <Field>
@@ -95,6 +133,12 @@ export function SignupForm({
                       name="confirm-password"
                       type="password"
                       required
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      aria-invalid={
+                        confirmPasswordStatus === "error" || undefined
+                      }
+                      className={confirmPasswordClasses}
                     />
                   </Field>
                 </Field>
