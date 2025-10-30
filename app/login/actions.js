@@ -1,11 +1,9 @@
 "use server";
 
-import { createClient } from "../../utils/supabase/server";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-async function revalidateRootLayout() {
-  const { revalidatePath } = await import("next/cache");
-  revalidatePath("/", "layout");
-}
+import { createClient } from "@/utils/supabase/server";
 
 export async function login(formData) {
   const supabase = await createClient();
@@ -30,75 +28,35 @@ export async function login(formData) {
       errorDetails.set("status", String(error.status));
     }
 
-    const { redirect } = await import("next/navigation");
     redirect(`/error?${errorDetails.toString()}`);
   }
 
-  revalidatePath("/dashboard", "layout");
+  revalidatePath("/", "layout");
 }
 
-const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
-const SIGNUP_DEFAULT_ERROR = "Unable to sign up right now. Please try again.";
-
-export async function signup(_prevState, formData) {
-  const email = formData.get("email");
-  const password = formData.get("password");
-  const confirmPassword = formData.get("confirm-password");
-
-  if (typeof email !== "string" || email.length === 0) {
-    return {
-      status: "error",
-      message: "Please enter a valid email address.",
-    };
-  }
-
-  if (typeof password !== "string" || typeof confirmPassword !== "string") {
-    return {
-      status: "error",
-      message: "Password and confirmation are required.",
-    };
-  }
-
-  if (password.length < 8) {
-    return {
-      status: "error",
-      message: "Password must be at least 8 characters long.",
-    };
-  }
-
-  if (password !== confirmPassword) {
-    return {
-      status: "error",
-      message: "Passwords do not match.",
-      email: emailValue,
-    };
-  }
-
+export async function signup(formData) {
   const supabase = await createClient();
 
   const data = {
-    email: emailValue,
-    password,
+    email: formData.get("email"),
+    password: formData.get("password"),
   };
 
   const { error } = await supabase.auth.signUp(data);
 
   if (error) {
-    console.error(SIGNUP_ERROR_PREFIX, error);
+    console.error("Supabase signup error:", error);
 
-    return {
-      status: "error",
-      message: error.message ?? SIGNUP_DEFAULT_ERROR,
-    };
+    const errorDetails = new URLSearchParams({
+      message: error.message ?? "Unable to sign up right now.",
+    });
+
+    if (error.status) {
+      errorDetails.set("status", String(error.status));
+    }
+
+    redirect(`/error?${errorDetails.toString()}`);
   }
-
-  revalidatePath("/otp", "layout");
-}
-
-export async function signout() {
-  const supabase = await createClient();
-
-  await supabase.auth.signOut({ scope: "local" });
 
   revalidatePath("/", "layout");
 }
