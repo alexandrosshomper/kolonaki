@@ -1,9 +1,11 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
 
+import { signupAction } from "@/app/login/actions";
+import { initialState, type SignupFormState } from "@/types/auth";
 import { cn } from "@/lib/utils";
-import { signup } from "../app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,26 +16,77 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-type SignupFormState = {
-  status: "idle" | "error" | "success";
-  message: string | null;
-  email: string;
-};
+function normalizeToState(res: unknown): SignupFormState {
+  if (res && typeof res === "object" && "status" in res) {
+    const result = res as Record<string, unknown>;
+    if (result.status === "success") {
+      const message =
+        typeof result.message === "string"
+          ? result.message
+          : "Success";
+      const email =
+        typeof result.email === "string" ? result.email : undefined;
+      return { status: "success", message, email };
+    }
 
-const initialState: SignupFormState = {
-  status: "idle",
-  message: null,
-  email: "",
-};
+    if (result.status === "error") {
+      const message =
+        typeof result.message === "string"
+          ? result.message
+          : "Something went wrong.";
+      const email =
+        typeof result.email === "string" ? result.email : undefined;
+      return { status: "error", message, email };
+    }
+  }
+
+  return {
+    status: "error",
+    message: "Unexpected response from signup.",
+  };
+}
+
+async function reducer(
+  _prev: SignupFormState,
+  formData: FormData
+): Promise<SignupFormState> {
+  try {
+    const res = await signupAction(formData);
+    const nextState = normalizeToState(res);
+    if (nextState.status === "error" && !nextState.email) {
+      const email = formData.get("email");
+      if (typeof email === "string" && email.length > 0) {
+        return { ...nextState, email };
+      }
+    }
+    return nextState;
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : "Unknown error.";
+    const email = formData.get("email");
+    return {
+      status: "error",
+      message,
+      email: typeof email === "string" ? email : undefined,
+    };
+  }
+}
 
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const [state, formAction] = useActionState<SignupFormState, FormData>(
-    signup,
+    reducer,
     initialState
   );
+
+  const emailFieldValue =
+    state.status === "success" || state.status === "error"
+      ? state.email ?? ""
+      : "";
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -68,13 +121,13 @@ export function SignupForm({
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
-                  key={state.email}
+                  key={emailFieldValue}
                   id="email"
                   name="email"
                   type="email"
                   required
                   placeholder="m@example.com"
-                  defaultValue={state.email}
+                  defaultValue={emailFieldValue}
                 />
                 <FieldDescription>
                   We&apos;ll use this to contact you. We will not share your
@@ -109,7 +162,9 @@ export function SignupForm({
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit">Create Account</Button>
+                <Button type="submit" disabled={state.status === "submitting"}>
+                  Create Account
+                </Button>
               </Field>
 
               <FieldDescription className="text-center">

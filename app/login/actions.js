@@ -39,23 +39,43 @@ export async function login(formData) {
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
 const SIGNUP_DEFAULT_ERROR = "Unable to sign up right now. Please try again.";
+const SIGNUP_SUCCESS_MESSAGE =
+  "Success! Please check your inbox to confirm your account.";
 
 export async function signup(_prevState, formData) {
-  const email = formData.get("email");
-  const password = formData.get("password");
-  const confirmPassword = formData.get("confirm-password");
+  return signupAction(formData);
+}
 
-  if (typeof email !== "string" || email.length === 0) {
+export async function signupAction(formData) {
+  return handleSignup(formData);
+}
+
+async function handleSignup(formData) {
+  const emailValue = formData.get("email");
+  const passwordValue = formData.get("password");
+  const confirmPasswordValue = formData.get("confirm-password");
+
+  const email =
+    typeof emailValue === "string" ? emailValue.trim() : "";
+  const password =
+    typeof passwordValue === "string" ? passwordValue : "";
+  const confirmPassword =
+    typeof confirmPasswordValue === "string"
+      ? confirmPasswordValue
+      : "";
+
+  if (email.length === 0) {
     return {
       status: "error",
       message: "Please enter a valid email address.",
     };
   }
 
-  if (typeof password !== "string" || typeof confirmPassword !== "string") {
+  if (password.length === 0 || confirmPassword.length === 0) {
     return {
       status: "error",
       message: "Password and confirmation are required.",
+      email,
     };
   }
 
@@ -63,6 +83,7 @@ export async function signup(_prevState, formData) {
     return {
       status: "error",
       message: "Password must be at least 8 characters long.",
+      email,
     };
   }
 
@@ -70,18 +91,16 @@ export async function signup(_prevState, formData) {
     return {
       status: "error",
       message: "Passwords do not match.",
-      email: emailValue,
+      email,
     };
   }
 
   const supabase = await createClient();
 
-  const data = {
-    email: emailValue,
+  const { error } = await supabase.auth.signUp({
+    email,
     password,
-  };
-
-  const { error } = await supabase.auth.signUp(data);
+  });
 
   if (error) {
     console.error(SIGNUP_ERROR_PREFIX, error);
@@ -89,10 +108,18 @@ export async function signup(_prevState, formData) {
     return {
       status: "error",
       message: error.message ?? SIGNUP_DEFAULT_ERROR,
+      email,
     };
   }
 
+  const { revalidatePath } = await import("next/cache");
   revalidatePath("/otp", "layout");
+
+  return {
+    status: "success",
+    message: SIGNUP_SUCCESS_MESSAGE,
+    email,
+  };
 }
 
 export async function signout() {
