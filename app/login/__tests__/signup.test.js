@@ -36,8 +36,30 @@ describe("signup", () => {
 
     assert.deepStrictEqual(result, {
       status: "error",
-      message: "Passwords do not match.",
+      message: "Confirm password did not match the password.",
       email: "user@example.com",
+      passwordStatus: "success",
+      confirmPasswordStatus: "error",
+      shouldResetPasswords: true,
+    });
+  });
+
+  it("returns an error message when password is too short", async () => {
+    const formData = new FormData();
+    formData.set("email", "user@example.com");
+    formData.set("password", "short");
+    formData.set("confirm-password", "short");
+
+    const result = await signup(undefined, formData);
+
+    assert.deepStrictEqual(result, {
+      status: "error",
+      message:
+        "Password too short. Password needs to be at least 8 characters long.",
+      email: "user@example.com",
+      passwordStatus: "error",
+      confirmPasswordStatus: "idle",
+      shouldResetPasswords: true,
     });
   });
 });
