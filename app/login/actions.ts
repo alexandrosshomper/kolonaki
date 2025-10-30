@@ -15,7 +15,7 @@ export type SignupFormState = {
 
 async function revalidateRootLayout() {
   const { revalidatePath } = await import("next/cache");
-  revalidatePath("/", "layout");
+  revalidatePath("/otp", "layout");
 }
 
 export async function login(formData: FormData) {
