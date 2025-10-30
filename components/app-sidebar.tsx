@@ -1,6 +1,9 @@
-"use client"
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import * as React from "react";
+import type { User } from "@supabase/supabase-js";
 
-import * as React from "react"
+import { createClient } from "@/utils/supabase/client";
 import {
   IconCamera,
   IconChartBar,
@@ -17,12 +20,12 @@ import {
   IconSearch,
   IconSettings,
   IconUsers,
-} from "@tabler/icons-react"
+} from "@tabler/icons-react";
 
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+import { NavDocuments } from "@/components/nav-documents";
+import { NavMain } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
@@ -31,14 +34,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+import Image from "next/image";
+
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user?: User | null;
+};
 
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -148,9 +151,45 @@ const data = {
       icon: IconFileWord,
     },
   ],
-}
+};
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const [fullname, setFullname] = useState(null);
+  const [username, setUsername] = useState(null);
+  const [website, setWebsite] = useState(null);
+
+  const getProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const { data, error, status } = await supabase
+        .from("profiles")
+        .select(`full_name, username, website, avatar_url`)
+        .eq("id", user?.id)
+        .single();
+
+      if (error && status !== 406) {
+        throw error;
+      }
+
+      if (data) {
+        setFullname(data.full_name);
+        setUsername(data.username);
+        setWebsite(data.website);
+      }
+    } catch (error) {
+      alert("Error loading user data!");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, supabase]);
+
+  useEffect(() => {
+    getProfile();
+  }, [user, getProfile]);
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -161,8 +200,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <Image
+                  className="dark:invert"
+                  src="/kolonaki-logo.png"
+                  alt="Kolonaki logo"
+                  width={32}
+                  height={32}
+                  priority
+                />
+                <span className="text-base font-semibold">Kolonaki</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -174,8 +220,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser
+          user={
+            user
+              ? {
+                  name: user.user_metadata?.full_name ?? user.email ?? "Unknown user",
+                  email: user.email ?? "unknown@example.com",
+                  avatar:
+                    (typeof user.user_metadata?.avatar_url === "string"
+                      ? user.user_metadata.avatar_url
+                      : undefined) ?? "",
+                }
+              : undefined
+          }
+        />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
