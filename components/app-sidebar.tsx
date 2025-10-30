@@ -1,6 +1,7 @@
-"use client"
-
-import * as React from "react"
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
+import * as React from "react";
 import {
   IconCamera,
   IconChartBar,
@@ -17,12 +18,12 @@ import {
   IconSearch,
   IconSettings,
   IconUsers,
-} from "@tabler/icons-react"
+} from "@tabler/icons-react";
 
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+import { NavDocuments } from "@/components/nav-documents";
+import { NavMain } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
@@ -31,14 +32,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -148,9 +144,43 @@ const data = {
       icon: IconFileWord,
     },
   ],
-}
+};
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  user,
+  ...props
+}: React.ComponentProps<typeof Sidebar>) {
+  const supabase = createClient();
+  const [loading, setLoading] = useState(true);
+  const getProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const { data, error, status } = await supabase
+        .from("profiles")
+        .select(`full_name, username, website, avatar_url`)
+        .eq("id", user?.id)
+        .single();
+
+      if (error && status !== 406) {
+        throw error;
+      }
+
+      if (data) {
+        setFullname(data.full_name);
+        setUsername(data.username);
+        setWebsite(data.website);
+      }
+    } catch (error) {
+      alert("Error loading user data!");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, supabase]);
+
+  useEffect(() => {
+    getProfile();
+  }, [user, getProfile]);
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -174,8 +204,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

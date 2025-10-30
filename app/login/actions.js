@@ -60,3 +60,11 @@ export async function signup(formData) {
 
   revalidatePath("/otp", "layout");
 }
+
+export async function signout() {
+  const supabase = await createClient();
+
+  await supabase.auth.signOut({ scope: "local" });
+
+  revalidatePath("/", "layout");
+}
