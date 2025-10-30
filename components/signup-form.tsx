@@ -31,7 +31,7 @@ export function SignupForm({
 }: React.ComponentProps<"div">) {
   const [state, formAction] = useFormState<SignupFormState, FormData>(
     signup,
-    initialState,
+    initialState
   );
   const [email, setEmail] = useState(initialState.email);
   const [password, setPassword] = useState("");
@@ -55,15 +55,15 @@ export function SignupForm({
     passwordStatus === "error"
       ? "border-destructive focus-visible:border-destructive"
       : passwordStatus === "success"
-        ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
-        : undefined;
+      ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
+      : undefined;
 
   const confirmPasswordClasses =
     confirmPasswordStatus === "error"
       ? "border-destructive focus-visible:border-destructive"
       : confirmPasswordStatus === "success"
-        ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
-        : undefined;
+      ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
+      : undefined;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -127,7 +127,9 @@ export function SignupForm({
                       type="password"
                       required
                       value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      onChange={(event) =>
+                        setConfirmPassword(event.target.value)
+                      }
                       aria-invalid={
                         confirmPasswordStatus === "error" || undefined
                       }
@@ -140,9 +142,7 @@ export function SignupForm({
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit">
-                  Create Account
-                </Button>
+                <Button type="submit">Create Account</Button>
               </Field>
 
               <FieldDescription className="text-center">
@@ -152,7 +152,7 @@ export function SignupForm({
           </form>
           <div className="bg-muted relative hidden md:block">
             <img
-              src="/placeholder.svg"
+              src="/moods/ionic-column-athean-forest.png"
               alt="Image"
               className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
             />
