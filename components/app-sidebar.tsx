@@ -1,8 +1,6 @@
-"use client";
-import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import * as React from "react";
-import type { User } from "@supabase/supabase-js";
+"use client"
+
+import * as React from "react"
 import {
   IconCamera,
   IconChartBar,
@@ -19,12 +17,12 @@ import {
   IconSearch,
   IconSettings,
   IconUsers,
-} from "@tabler/icons-react";
+} from "@tabler/icons-react"
 
-import { NavDocuments } from "@/components/nav-documents";
-import { NavMain } from "@/components/nav-main";
-import { NavSecondary } from "@/components/nav-secondary";
-import { NavUser } from "@/components/nav-user";
+import { NavDocuments } from "@/components/nav-documents"
+import { NavMain } from "@/components/nav-main"
+import { NavSecondary } from "@/components/nav-secondary"
+import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
@@ -33,9 +31,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
+} from "@/components/ui/sidebar"
 
 const data = {
+  user: {
+    name: "shadcn",
+    email: "m@example.com",
+    avatar: "/avatars/shadcn.jpg",
+  },
   navMain: [
     {
       title: "Dashboard",
@@ -145,62 +148,9 @@ const data = {
       icon: IconFileWord,
     },
   ],
-};
+}
 
-type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
-  user: User | null;
-};
-
-const FALLBACK_AVATAR =
-  "https://www.gravatar.com/avatar/?d=mp";
-
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
-  const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-  const [fullName, setFullName] = useState<string | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const getProfile = useCallback(async () => {
-    if (!user?.id) {
-      setFullName(user?.user_metadata?.full_name ?? null);
-      setUsername(user?.user_metadata?.user_name ?? null);
-      setAvatarUrl(user?.user_metadata?.avatar_url ?? null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const { data, error, status } = await supabase
-        .from("profiles")
-        .select(`full_name, username, website, avatar_url`)
-        .eq("id", user.id)
-        .single();
-
-      if (error && status !== 406) {
-        throw error;
-      }
-
-      if (data) {
-        setFullName(data.full_name ?? null);
-        setUsername(data.username ?? null);
-        setAvatarUrl(data.avatar_url ?? null);
-      } else {
-        setFullName(user.user_metadata?.full_name ?? null);
-        setUsername(user.user_metadata?.user_name ?? null);
-        setAvatarUrl(user.user_metadata?.avatar_url ?? null);
-      }
-    } catch (error) {
-      console.error("Error loading user data", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase, user]);
-
-  useEffect(() => {
-    getProfile();
-  }, [user, getProfile]);
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -224,24 +174,8 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser
-          user={{
-            name:
-              (loading ? "Loading..." : null) ??
-              fullName ??
-              user?.user_metadata?.full_name ??
-              username ??
-              user?.email ??
-              "User",
-            email: user?.email ?? "",
-            avatar:
-              (loading ? FALLBACK_AVATAR : null) ??
-              avatarUrl ??
-              user?.user_metadata?.avatar_url ??
-              FALLBACK_AVATAR,
-          }}
-        />
+        <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>
-  );
+  )
 }
