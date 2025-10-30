@@ -34,7 +34,7 @@ export async function login(formData) {
     redirect(`/error?${errorDetails.toString()}`);
   }
 
-  await revalidateRootLayout();
+  revalidatePath("/dashboard", "layout");
 }
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
@@ -92,11 +92,13 @@ export async function signup(_prevState, formData) {
     };
   }
 
-  await revalidateRootLayout();
+  revalidatePath("/otp", "layout");
+}
 
-  return {
-    status: "success",
-    message:
-      "Check your email inbox for a confirmation link to finish creating your account.",
-  };
+export async function signout() {
+  const supabase = await createClient();
+
+  await supabase.auth.signOut({ scope: "local" });
+
+  revalidatePath("/", "layout");
 }
