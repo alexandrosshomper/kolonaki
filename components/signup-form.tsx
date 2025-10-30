@@ -29,7 +29,10 @@ export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [state, formAction] = useFormState<SignupFormState>(signup, initialState);
+  const [state, formAction] = useFormState<SignupFormState, FormData>(
+    signup,
+    initialState,
+  );
   const [email, setEmail] = useState(initialState.email);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
