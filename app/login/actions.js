@@ -40,13 +40,22 @@ export async function login(formData) {
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
 
 export async function signup(prevState, formData) {
+  const email = formData.get("email");
   const password = formData.get("password");
   const confirmPassword = formData.get("confirm-password");
+
+  const emailValue =
+    typeof email === "string"
+      ? email
+      : prevState && typeof prevState.email === "string"
+        ? prevState.email
+        : "";
 
   if (typeof password !== "string" || typeof confirmPassword !== "string") {
     return {
       status: "error",
       message: "Password and confirmation are required.",
+      email: emailValue,
     };
   }
 
@@ -54,13 +63,14 @@ export async function signup(prevState, formData) {
     return {
       status: "error",
       message: "Passwords do not match.",
+      email: emailValue,
     };
   }
 
   const supabase = await createClient();
 
   const data = {
-    email: formData.get("email"),
+    email: emailValue,
     password,
   };
 
@@ -72,6 +82,7 @@ export async function signup(prevState, formData) {
     return {
       status: "error",
       message: error.message ?? "Unable to sign up right now.",
+      email: emailValue,
     };
   }
 
@@ -80,5 +91,6 @@ export async function signup(prevState, formData) {
   return {
     status: "success",
     message: null,
+    email: "",
   };
 }

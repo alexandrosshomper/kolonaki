@@ -37,6 +37,7 @@ describe("signup", () => {
     assert.deepStrictEqual(result, {
       status: "error",
       message: "Passwords do not match.",
+      email: "user@example.com",
     });
   });
 });

@@ -17,11 +17,13 @@ import { Input } from "@/components/ui/input";
 type SignupFormState = {
   status: "idle" | "error" | "success";
   message: string | null;
+  email: string;
 };
 
 const initialState: SignupFormState = {
   status: "idle",
   message: null,
+  email: "",
 };
 
 export function SignupForm({
@@ -54,11 +56,13 @@ export function SignupForm({
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
+                  key={state.email}
                   id="email"
                   name="email"
                   type="email"
                   required
                   placeholder="m@example.com"
+                  defaultValue={state.email}
                 />
                 <FieldDescription>
                   We&apos;ll use this to contact you. We will not share your
