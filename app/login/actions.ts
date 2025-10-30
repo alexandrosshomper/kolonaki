@@ -2,19 +2,33 @@
 
 import { createClient } from "../../utils/supabase/server";
 
+export type FieldStatus = "idle" | "error" | "success";
+
+export type SignupFormState = {
+  status: FieldStatus;
+  message: string | null;
+  email: string;
+  passwordStatus: FieldStatus;
+  confirmPasswordStatus: FieldStatus;
+  shouldResetPasswords: boolean;
+};
+
 async function revalidateRootLayout() {
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/", "layout");
 }
 
-export async function login(formData) {
+export async function login(formData: FormData) {
   const supabase = await createClient();
 
   // type-casting here for convenience
   // in practice, you should validate your inputs
+  const emailEntry = formData.get("email");
+  const passwordEntry = formData.get("password");
+
   const data = {
-    email: formData.get("email"),
-    password: formData.get("password"),
+    email: typeof emailEntry === "string" ? emailEntry : "",
+    password: typeof passwordEntry === "string" ? passwordEntry : "",
   };
 
   const { error } = await supabase.auth.signInWithPassword(data);
@@ -39,7 +53,10 @@ export async function login(formData) {
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
 
-export async function signup(prevState, formData) {
+export async function signup(
+  prevState: SignupFormState,
+  formData: FormData,
+): Promise<SignupFormState> {
   const email = formData.get("email");
   const password = formData.get("password");
   const confirmPassword = formData.get("confirm-password");
@@ -52,9 +69,7 @@ export async function signup(prevState, formData) {
   const emailValue =
     typeof email === "string"
       ? email
-      : prevState && typeof prevState.email === "string"
-        ? prevState.email
-        : "";
+      : prevState.email;
 
   if (typeof password !== "string" || typeof confirmPassword !== "string") {
     return {

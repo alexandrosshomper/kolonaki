@@ -5,6 +5,7 @@ import { useFormState } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
+import type { SignupFormState } from "../app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,17 +15,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-
-type FieldStatus = "idle" | "error" | "success";
-
-type SignupFormState = {
-  status: "idle" | "error" | "success";
-  message: string | null;
-  email: string;
-  passwordStatus: FieldStatus;
-  confirmPasswordStatus: FieldStatus;
-  shouldResetPasswords: boolean;
-};
 
 const initialState: SignupFormState = {
   status: "idle",
