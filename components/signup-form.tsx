@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
@@ -30,7 +30,10 @@ export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [state, formAction] = useFormState<SignupFormState>(signup, initialState);
+  const [state, formAction] = useActionState<SignupFormState, FormData>(
+    signup,
+    initialState
+  );
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -49,6 +52,15 @@ export function SignupForm({
                   aria-live="polite"
                   role="alert"
                   className="text-destructive text-sm"
+                >
+                  {state.message}
+                </p>
+              ) : null}
+              {state.status === "success" && state.message ? (
+                <p
+                  aria-live="polite"
+                  role="status"
+                  className="text-sm text-emerald-600"
                 >
                   {state.message}
                 </p>
@@ -97,9 +109,7 @@ export function SignupForm({
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit">
-                  Create Account
-                </Button>
+                <Button type="submit">Create Account</Button>
               </Field>
 
               <FieldDescription className="text-center">

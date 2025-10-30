@@ -38,24 +38,31 @@ export async function login(formData) {
 }
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
+const SIGNUP_DEFAULT_ERROR = "Unable to sign up right now. Please try again.";
 
-export async function signup(prevState, formData) {
+export async function signup(_prevState, formData) {
   const email = formData.get("email");
   const password = formData.get("password");
   const confirmPassword = formData.get("confirm-password");
 
-  const emailValue =
-    typeof email === "string"
-      ? email
-      : prevState && typeof prevState.email === "string"
-        ? prevState.email
-        : "";
+  if (typeof email !== "string" || email.length === 0) {
+    return {
+      status: "error",
+      message: "Please enter a valid email address.",
+    };
+  }
 
   if (typeof password !== "string" || typeof confirmPassword !== "string") {
     return {
       status: "error",
       message: "Password and confirmation are required.",
-      email: emailValue,
+    };
+  }
+
+  if (password.length < 8) {
+    return {
+      status: "error",
+      message: "Password must be at least 8 characters long.",
     };
   }
 
@@ -81,8 +88,7 @@ export async function signup(prevState, formData) {
 
     return {
       status: "error",
-      message: error.message ?? "Unable to sign up right now.",
-      email: emailValue,
+      message: error.message ?? SIGNUP_DEFAULT_ERROR,
     };
   }
 
@@ -90,7 +96,7 @@ export async function signup(prevState, formData) {
 
   return {
     status: "success",
-    message: null,
-    email: "",
+    message:
+      "Check your email inbox for a confirmation link to finish creating your account.",
   };
 }
