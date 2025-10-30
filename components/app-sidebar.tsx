@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import * as React from "react";
+import type { User } from "@supabase/supabase-js";
 import {
   IconCamera,
   IconChartBar,
@@ -146,20 +147,35 @@ const data = {
   ],
 };
 
-export function AppSidebar({
-  user,
-  ...props
-}: React.ComponentProps<typeof Sidebar>) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user: User | null;
+};
+
+const FALLBACK_AVATAR =
+  "https://www.gravatar.com/avatar/?d=mp";
+
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
+  const [fullName, setFullName] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const getProfile = useCallback(async () => {
+    if (!user?.id) {
+      setFullName(user?.user_metadata?.full_name ?? null);
+      setUsername(user?.user_metadata?.user_name ?? null);
+      setAvatarUrl(user?.user_metadata?.avatar_url ?? null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
       const { data, error, status } = await supabase
         .from("profiles")
         .select(`full_name, username, website, avatar_url`)
-        .eq("id", user?.id)
+        .eq("id", user.id)
         .single();
 
       if (error && status !== 406) {
@@ -167,16 +183,20 @@ export function AppSidebar({
       }
 
       if (data) {
-        setFullname(data.full_name);
-        setUsername(data.username);
-        setWebsite(data.website);
+        setFullName(data.full_name ?? null);
+        setUsername(data.username ?? null);
+        setAvatarUrl(data.avatar_url ?? null);
+      } else {
+        setFullName(user.user_metadata?.full_name ?? null);
+        setUsername(user.user_metadata?.user_name ?? null);
+        setAvatarUrl(user.user_metadata?.avatar_url ?? null);
       }
     } catch (error) {
-      alert("Error loading user data!");
+      console.error("Error loading user data", error);
     } finally {
       setLoading(false);
     }
-  }, [user, supabase]);
+  }, [supabase, user]);
 
   useEffect(() => {
     getProfile();
@@ -204,7 +224,23 @@ export function AppSidebar({
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser
+          user={{
+            name:
+              (loading ? "Loading..." : null) ??
+              fullName ??
+              user?.user_metadata?.full_name ??
+              username ??
+              user?.email ??
+              "User",
+            email: user?.email ?? "",
+            avatar:
+              (loading ? FALLBACK_AVATAR : null) ??
+              avatarUrl ??
+              user?.user_metadata?.avatar_url ??
+              FALLBACK_AVATAR,
+          }}
+        />
       </SidebarFooter>
     </Sidebar>
   );
