@@ -1,3 +1,7 @@
+"use client";
+
+import { useActionState } from "react";
+
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
 import { Button } from "@/components/ui/button";
@@ -7,19 +11,35 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+
+type SignupFormState = {
+  status: "idle" | "error" | "success";
+  message: string | null;
+  email: string;
+};
+
+const initialState: SignupFormState = {
+  status: "idle",
+  message: null,
+  email: "",
+};
 
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [state, formAction] = useActionState<SignupFormState, FormData>(
+    signup,
+    initialState
+  );
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
-          <form className="p-6 md:p-8">
+          <form action={formAction} className="p-6 md:p-8">
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Create your account</h1>
@@ -27,14 +47,34 @@ export function SignupForm({
                   Enter your email below to create your Kolonaki account
                 </p>
               </div>
+              {state.status === "error" && state.message ? (
+                <p
+                  aria-live="polite"
+                  role="alert"
+                  className="text-destructive text-sm"
+                >
+                  {state.message}
+                </p>
+              ) : null}
+              {state.status === "success" && state.message ? (
+                <p
+                  aria-live="polite"
+                  role="status"
+                  className="text-sm text-emerald-600"
+                >
+                  {state.message}
+                </p>
+              ) : null}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
+                  key={state.email}
                   id="email"
                   name="email"
                   type="email"
                   required
                   placeholder="m@example.com"
+                  defaultValue={state.email}
                 />
                 <FieldDescription>
                   We&apos;ll use this to contact you. We will not share your
@@ -69,9 +109,7 @@ export function SignupForm({
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit" formAction={signup}>
-                  Create Account
-                </Button>
+                <Button type="submit">Create Account</Button>
               </Field>
 
               <FieldDescription className="text-center">
