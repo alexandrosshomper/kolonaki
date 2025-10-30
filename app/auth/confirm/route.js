@@ -6,7 +6,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = "/account";
+  const next = "/dashboard";
 
   // Create redirect link without the secret token
   const redirectTo = request.nextUrl.clone();
