@@ -31,7 +31,7 @@ export async function login(formData) {
     redirect(`/error?${errorDetails.toString()}`);
   }
 
-  revalidatePath("/", "layout");
+  revalidatePath("/dashboard", "layout");
 }
 
 export async function signup(formData) {
@@ -58,5 +58,5 @@ export async function signup(formData) {
     redirect(`/error?${errorDetails.toString()}`);
   }
 
-  revalidatePath("/", "layout");
+  revalidatePath("/otp", "layout");
 }
