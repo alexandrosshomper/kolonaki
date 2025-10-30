@@ -1,9 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { createClient } from "../../utils/supabase/server";
 
-import { createClient } from "@/utils/supabase/server";
+async function revalidateRootLayout() {
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/", "layout");
+}
 
 export async function login(formData) {
   const supabase = await createClient();
@@ -28,35 +30,67 @@ export async function login(formData) {
       errorDetails.set("status", String(error.status));
     }
 
+    const { redirect } = await import("next/navigation");
     redirect(`/error?${errorDetails.toString()}`);
   }
 
-  revalidatePath("/", "layout");
+  await revalidateRootLayout();
 }
 
-export async function signup(formData) {
+const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
+
+export async function signup(prevState, formData) {
+  const email = formData.get("email");
+  const password = formData.get("password");
+  const confirmPassword = formData.get("confirm-password");
+
+  const emailValue =
+    typeof email === "string"
+      ? email
+      : prevState && typeof prevState.email === "string"
+        ? prevState.email
+        : "";
+
+  if (typeof password !== "string" || typeof confirmPassword !== "string") {
+    return {
+      status: "error",
+      message: "Password and confirmation are required.",
+      email: emailValue,
+    };
+  }
+
+  if (password !== confirmPassword) {
+    return {
+      status: "error",
+      message: "Passwords do not match.",
+      email: emailValue,
+    };
+  }
+
   const supabase = await createClient();
 
   const data = {
-    email: formData.get("email"),
-    password: formData.get("password"),
+    email: emailValue,
+    password,
   };
 
   const { error } = await supabase.auth.signUp(data);
 
   if (error) {
-    console.error("Supabase signup error:", error);
+    console.error(SIGNUP_ERROR_PREFIX, error);
 
-    const errorDetails = new URLSearchParams({
+    return {
+      status: "error",
       message: error.message ?? "Unable to sign up right now.",
-    });
-
-    if (error.status) {
-      errorDetails.set("status", String(error.status));
-    }
-
-    redirect(`/error?${errorDetails.toString()}`);
+      email: emailValue,
+    };
   }
 
-  revalidatePath("/", "layout");
+  await revalidateRootLayout();
+
+  return {
+    status: "success",
+    message: null,
+    email: "",
+  };
 }
