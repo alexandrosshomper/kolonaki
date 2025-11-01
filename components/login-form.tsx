@@ -1,5 +1,7 @@
-import { cn } from "@/lib/utils";
-import { login } from "../app/login/actions";
+"use client";
+
+import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -7,16 +9,24 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { login } from "../app/login/actions";
+import { Logo } from "./logo";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [email, setEmail] = useState("");
+  const forgotPasswordHref = email
+    ? `/forgot-password?email=${encodeURIComponent(email)}`
+    : "/forgot-password";
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      <Logo />
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form className="p-6 md:p-8">
@@ -35,13 +45,15 @@ export function LoginForm({
                   type="email"
                   required
                   placeholder="m@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </Field>
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
                   <a
-                    href="#"
+                    href={forgotPasswordHref}
                     className="ml-auto text-sm underline-offset-2 hover:underline"
                   >
                     Forgot your password?

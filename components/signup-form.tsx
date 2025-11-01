@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
-import type { SignupFormState } from "../app/login/actions";
+import type { FieldStatus, SignupFormState } from "../app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,6 +14,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Logo } from "./logo";
 
 const initialState: SignupFormState = {
   status: "idle",
@@ -50,22 +51,48 @@ export function SignupForm({
   const passwordStatus = state.passwordStatus ?? "idle";
   const confirmPasswordStatus = state.confirmPasswordStatus ?? "idle";
 
+  const passwordRequirementsMet = password.length >= 8;
+  const confirmPasswordRequirementsMet =
+    passwordRequirementsMet &&
+    confirmPassword.length > 0 &&
+    confirmPassword === password;
+
+  const successInputClasses =
+    "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50";
+  const errorInputClasses =
+    "border-destructive focus-visible:border-destructive";
+
+  const activePasswordStatus: FieldStatus =
+    password.length > 0
+      ? passwordRequirementsMet
+        ? "success"
+        : "idle"
+      : passwordStatus;
+
+  const activeConfirmPasswordStatus: FieldStatus =
+    confirmPassword.length > 0 || password.length > 0
+      ? confirmPasswordRequirementsMet
+        ? "success"
+        : "idle"
+      : confirmPasswordStatus;
+
   const passwordClasses =
-    passwordStatus === "error"
-      ? "border-destructive focus-visible:border-destructive"
-      : passwordStatus === "success"
-      ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
+    activePasswordStatus === "error"
+      ? errorInputClasses
+      : activePasswordStatus === "success"
+      ? successInputClasses
       : undefined;
 
   const confirmPasswordClasses =
-    confirmPasswordStatus === "error"
-      ? "border-destructive focus-visible:border-destructive"
-      : confirmPasswordStatus === "success"
-      ? "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50"
+    activeConfirmPasswordStatus === "error"
+      ? errorInputClasses
+      : activeConfirmPasswordStatus === "success"
+      ? successInputClasses
       : undefined;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      <Logo />
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form action={formAction} className="p-6 md:p-8">
@@ -112,7 +139,7 @@ export function SignupForm({
                       required
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      aria-invalid={passwordStatus === "error" || undefined}
+                      aria-invalid={activePasswordStatus === "error" || undefined}
                       className={passwordClasses}
                     />
                   </Field>
@@ -130,7 +157,7 @@ export function SignupForm({
                         setConfirmPassword(event.target.value)
                       }
                       aria-invalid={
-                        confirmPasswordStatus === "error" || undefined
+                        activeConfirmPasswordStatus === "error" || undefined
                       }
                       className={confirmPasswordClasses}
                     />
