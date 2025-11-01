@@ -18,6 +18,9 @@ async function revalidateRootLayout() {
   revalidatePath("/otp", "layout");
 }
 
+const VERIFY_OTP_ERROR_PREFIX = "Supabase verify OTP error:";
+const RESEND_OTP_ERROR_PREFIX = "Supabase resend OTP error:";
+
 export async function login(formData: FormData) {
   const supabase = await createClient();
 
@@ -49,6 +52,8 @@ export async function login(formData: FormData) {
   }
 
   await revalidateRootLayout();
+  const { redirect } = await import("next/navigation");
+  redirect("/dashboard");
 }
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
@@ -136,4 +141,102 @@ export async function signup(
     confirmPasswordStatus: "success",
     shouldResetPasswords: false,
   };
+}
+
+export async function signout() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  await revalidateRootLayout();
+  const { redirect } = await import("next/navigation");
+  redirect("/login");
+}
+
+export async function verifyOtp(formData: FormData) {
+  const supabase = await createClient();
+
+  const rawEmail = formData.get("email");
+  const rawToken = formData.get("otp");
+
+  const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
+  const token = typeof rawToken === "string" ? rawToken.replace(/\D/g, "") : "";
+
+  const { redirect } = await import("next/navigation");
+
+  if (!email || token.length !== 6) {
+    const params = new URLSearchParams();
+    params.set("status", "error");
+
+    if (!email) {
+      params.set("message", "Missing email for verification.");
+    } else {
+      params.set("message", "Invalid verification code provided.");
+      params.set("email", email);
+    }
+
+    redirect(`/otp?${params.toString()}`);
+  }
+
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: "signup",
+  });
+
+  if (error) {
+    console.error(VERIFY_OTP_ERROR_PREFIX, error);
+
+    const params = new URLSearchParams({
+      message: error.message ?? "Unable to verify the provided code.",
+      email,
+      status: "error",
+    });
+
+    redirect(`/otp?${params.toString()}`);
+  }
+
+  await revalidateRootLayout();
+  redirect("/dashboard");
+}
+
+export async function resendOtp(formData: FormData) {
+  const supabase = await createClient();
+
+  const rawEmail = formData.get("email");
+  const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
+
+  const { redirect } = await import("next/navigation");
+
+  if (!email) {
+    const params = new URLSearchParams({
+      status: "error",
+      message: "Missing email for resending verification code.",
+    });
+
+    redirect(`/otp?${params.toString()}`);
+  }
+
+  const { error } = await supabase.auth.resend({
+    email,
+    type: "signup",
+  });
+
+  if (error) {
+    console.error(RESEND_OTP_ERROR_PREFIX, error);
+
+    const params = new URLSearchParams({
+      status: "error",
+      message: error.message ?? "Unable to resend the verification code.",
+      email,
+    });
+
+    redirect(`/otp?${params.toString()}`);
+  }
+
+  const params = new URLSearchParams({
+    status: "success",
+    message: "A new verification code was sent to your email.",
+    email,
+  });
+
+  redirect(`/otp?${params.toString()}`);
 }

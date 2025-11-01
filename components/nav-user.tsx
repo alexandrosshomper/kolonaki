@@ -1,4 +1,5 @@
 "use client";
+import { signout } from "../app/login/actions";
 
 import {
   IconCreditCard,
@@ -97,7 +98,7 @@ export function NavUser({ user }: NavUserProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={signout}>
               <IconLogout />
               Log out
             </DropdownMenuItem>
