@@ -1,29 +1,30 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 
-mock.module(
-  "next/cache",
-  {
-    exports: {
-      revalidatePath: () => {},
-    },
+mock.module("next/cache", {
+  exports: {
+    revalidatePath: () => {},
   },
-  { parentURL: new URL("../actions.js", import.meta.url).href }
-);
+});
 
-mock.module(
-  "next/navigation",
-  {
-    exports: {
-      redirect: () => {
-        throw new Error("redirect should not be called during tests");
-      },
+mock.module("next/navigation", {
+  exports: {
+    redirect: () => {
+      throw new Error("redirect should not be called during tests");
     },
   },
-  { parentURL: new URL("../actions.js", import.meta.url).href }
-);
+});
 
 const { signup } = await import("../actions.js");
+
+const initialState = {
+  status: "idle",
+  message: null,
+  email: "",
+  passwordStatus: "idle",
+  confirmPasswordStatus: "idle",
+  shouldResetPasswords: false,
+};
 
 describe("signup", () => {
   it("returns an error message when passwords do not match", async () => {
@@ -32,7 +33,7 @@ describe("signup", () => {
     formData.set("password", "password123");
     formData.set("confirm-password", "different");
 
-    const result = await signup(undefined, formData);
+    const result = await signup(initialState, formData);
 
     assert.deepStrictEqual(result, {
       status: "error",
@@ -50,7 +51,7 @@ describe("signup", () => {
     formData.set("password", "short");
     formData.set("confirm-password", "short");
 
-    const result = await signup(undefined, formData);
+    const result = await signup(initialState, formData);
 
     assert.deepStrictEqual(result, {
       status: "error",
