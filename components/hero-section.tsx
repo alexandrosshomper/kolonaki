@@ -6,7 +6,6 @@ import Image from "next/image";
 import { TextEffect } from "@/components/ui/text-effect";
 import { AnimatedGroup } from "@/components/ui/animated-group";
 import type { Transition, Variants } from "motion/react";
-import { HeroHeader } from "./hero-header";
 
 const backgroundVariants = {
   container: {
@@ -67,9 +66,7 @@ const ctaGroupVariants = {
 
 export default function HeroSection() {
   return (
-    <>
-      <HeroHeader />
-      <main className="overflow-hidden">
+    <div className="overflow-hidden">
         <div
           aria-hidden
           className="absolute inset-0 isolate hidden opacity-65 contain-strict lg:block"
@@ -288,7 +285,6 @@ export default function HeroSection() {
             </div>
           </div>
         </section>
-      </main>
-    </>
+      </div>
   );
 }

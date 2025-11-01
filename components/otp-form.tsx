@@ -13,6 +13,7 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { Logo } from "./logo";
 
 export function OTPForm({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -20,6 +21,7 @@ export function OTPForm({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex flex-col gap-6 md:min-h-[450px]", className)}
       {...props}
     >
+      <Logo />
       <Card className="flex-1 overflow-hidden p-0">
         <CardContent className="grid flex-1 p-0 md:grid-cols-2">
           <form className="flex flex-col items-center justify-center p-6 md:p-8">

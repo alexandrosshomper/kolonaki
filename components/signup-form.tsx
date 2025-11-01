@@ -14,6 +14,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Logo } from "./logo";
 
 const initialState: SignupFormState = {
   status: "idle",
@@ -66,6 +67,7 @@ export function SignupForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      <Logo />
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form action={formAction} className="p-6 md:p-8">
