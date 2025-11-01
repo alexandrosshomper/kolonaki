@@ -3,6 +3,8 @@ import { ReactNode } from 'react';
 import { motion, Variants } from 'motion/react';
 import React from 'react';
 
+type AsProp = keyof JSX.IntrinsicElements | React.ComponentType<any>;
+
 export type PresetType =
   | 'fade'
   | 'slide'
@@ -23,8 +25,8 @@ export type AnimatedGroupProps = {
     item?: Variants;
   };
   preset?: PresetType;
-  as?: React.ElementType;
-  asChild?: React.ElementType;
+  as?: AsProp;
+  asChild?: AsProp;
 };
 
 const defaultContainerVariants: Variants = {
@@ -100,6 +102,18 @@ const addDefaultVariants = (variants: Variants) => ({
   visible: { ...defaultItemVariants.visible, ...variants.visible },
 });
 
+const getMotionComponent = (component?: AsProp) => {
+  if (!component) {
+    return motion.create('div');
+  }
+
+  if (typeof component === 'string') {
+    return motion.create(component);
+  }
+
+  return motion.create(component);
+};
+
 function AnimatedGroup({
   children,
   className,
@@ -115,12 +129,9 @@ function AnimatedGroup({
   const containerVariants = variants?.container || selectedVariants.container;
   const itemVariants = variants?.item || selectedVariants.item;
 
-  const MotionComponent = React.useMemo(
-    () => motion.create(as as keyof JSX.IntrinsicElements),
-    [as]
-  );
+  const MotionComponent = React.useMemo(() => getMotionComponent(as), [as]);
   const MotionChild = React.useMemo(
-    () => motion.create(asChild as keyof JSX.IntrinsicElements),
+    () => getMotionComponent(asChild),
     [asChild]
   );
 

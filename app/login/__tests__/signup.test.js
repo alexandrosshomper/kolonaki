@@ -69,7 +69,7 @@ describe("signup", () => {
     formData.set("email", "user@example.com");
     formData.set("confirm-password", "password123");
 
-    const result = await signup(initialState, formData);
+    const result = await signup(undefined, formData);
 
     assert.deepStrictEqual(result, {
       status: "error",
@@ -86,7 +86,7 @@ describe("signup", () => {
     formData.set("email", "user@example.com");
     formData.set("password", "password123");
 
-    const result = await signup(initialState, formData);
+    const result = await signup(undefined, formData);
 
     assert.deepStrictEqual(result, {
       status: "error",
