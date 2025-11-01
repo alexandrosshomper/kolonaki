@@ -1,9 +1,8 @@
 'use client';
-import { ReactNode } from 'react';
+import React, { type ElementType, type ReactNode } from 'react';
 import { motion, Variants } from 'motion/react';
-import React from 'react';
 
-type AsProp = keyof JSX.IntrinsicElements | React.ComponentType<any>;
+type AsProp = ElementType;
 
 export type PresetType =
   | 'fade'
