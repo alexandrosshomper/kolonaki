@@ -125,12 +125,6 @@ export async function signup(
 
   await revalidateRootLayout();
 
-  return {
-    status: "success",
-    message: null,
-    email: "",
-    passwordStatus: "success",
-    confirmPasswordStatus: "success",
-    shouldResetPasswords: false,
-  };
+  const { redirect } = await import("next/navigation");
+  redirect(`/otp?email=${encodeURIComponent(emailValue)}`);
 }
