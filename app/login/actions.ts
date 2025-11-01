@@ -127,4 +127,13 @@ export async function signup(
 
   const { redirect } = await import("next/navigation");
   redirect(`/otp?email=${encodeURIComponent(emailValue)}`);
+
+  return {
+    status: "success",
+    message: null,
+    email: "",
+    passwordStatus: "success",
+    confirmPasswordStatus: "success",
+    shouldResetPasswords: false,
+  };
 }
