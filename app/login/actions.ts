@@ -13,6 +13,12 @@ export type SignupFormState = {
   shouldResetPasswords: boolean;
 };
 
+export type ForgotPasswordFormState = {
+  status: FieldStatus;
+  message: string | null;
+  email: string;
+};
+
 async function revalidateRootLayout() {
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/otp", "layout");
@@ -20,6 +26,7 @@ async function revalidateRootLayout() {
 
 const VERIFY_OTP_ERROR_PREFIX = "Supabase verify OTP error:";
 const RESEND_OTP_ERROR_PREFIX = "Supabase resend OTP error:";
+const RESET_PASSWORD_ERROR_PREFIX = "Supabase reset password error:";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -239,4 +246,80 @@ export async function resendOtp(formData: FormData) {
   });
 
   redirect(`/otp?${params.toString()}`);
+}
+
+export async function sendPasswordResetLink(
+  prevState: ForgotPasswordFormState,
+  formData: FormData
+): Promise<ForgotPasswordFormState> {
+  const rawEmail = formData.get("email");
+  const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
+
+  if (!email) {
+    return {
+      status: "error",
+      message: "Email is required.",
+      email: prevState.email,
+    };
+  }
+
+  if (!isValidEmail(email)) {
+    return {
+      status: "error",
+      message: "Please enter a valid email address.",
+      email,
+    };
+  }
+
+  const supabase = await createClient();
+
+  const redirectTo = getResetPasswordRedirectUrl();
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    console.error(RESET_PASSWORD_ERROR_PREFIX, error);
+
+    return {
+      status: "error",
+      message: error.message ?? "Unable to send a reset password link.",
+      email,
+    };
+  }
+
+  return {
+    status: "success",
+    message: "Check your email for a link to reset your password.",
+    email: "",
+  };
+}
+
+function isValidEmail(email: string): boolean {
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailPattern.test(email);
+}
+
+function getResetPasswordRedirectUrl(): string {
+  const envUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.NEXT_PUBLIC_VERCEL_URL ??
+    process.env.VERCEL_URL;
+
+  if (envUrl) {
+    const baseUrl = envUrl.startsWith("http") ? envUrl : `https://${envUrl}`;
+
+    try {
+      return new URL("/reset-password", baseUrl).toString();
+    } catch (error) {
+      console.warn(
+        "Invalid base URL for password reset redirect; falling back to localhost.",
+        error
+      );
+    }
+  }
+
+  return new URL("/reset-password", "http://localhost:3000").toString();
 }

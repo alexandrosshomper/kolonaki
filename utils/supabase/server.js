@@ -11,18 +11,56 @@ export async function createClient() {
   // which could be used to maintain user's session
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      getAll() {
-        return cookieStore.getAll();
+      get(name) {
+        const cookie =
+          typeof cookieStore.get === "function"
+            ? cookieStore.get(name)
+            : undefined;
+        if (!cookie) {
+          return undefined;
+        }
+
+        return typeof cookie === "string" ? cookie : cookie.value;
       },
-      setAll(cookiesToSet) {
+      async set(name, value, options) {
+        if (typeof cookieStore.set !== "function") {
+          return;
+        }
+
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
+          cookieStore.set(name, value, options);
+        } catch (error) {
+          console.warn(
+            "Unable to persist Supabase auth cookies from this context.",
+            error
           );
-        } catch {
-          // The `setAll` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
+        }
+      },
+      async remove(name, options) {
+        if (typeof cookieStore.delete === "function") {
+          try {
+            cookieStore.delete(name, options);
+          } catch (error) {
+            console.warn(
+              "Unable to remove Supabase auth cookies from this context.",
+              error
+            );
+          }
+          return;
+        }
+
+        if (typeof cookieStore.set === "function") {
+          try {
+            cookieStore.set(name, "", {
+              ...options,
+              maxAge: 0,
+            });
+          } catch (error) {
+            console.warn(
+              "Unable to clear Supabase auth cookies from this context.",
+              error
+            );
+          }
         }
       },
     },
