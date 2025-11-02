@@ -1,5 +1,7 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import { createClient } from "../../utils/supabase/server";
 
 export type FieldStatus = "idle" | "error" | "success";
@@ -273,7 +275,7 @@ export async function sendPasswordResetLink(
 
   const supabase = await createClient();
 
-  const redirectTo = getResetPasswordRedirectUrl();
+  const redirectTo = await getResetPasswordRedirectUrl();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
@@ -301,25 +303,68 @@ function isValidEmail(email: string): boolean {
   return emailPattern.test(email);
 }
 
-function getResetPasswordRedirectUrl(): string {
+async function getResetPasswordRedirectUrl(): Promise<string> {
+  const baseUrl =
+    getBaseUrlFromEnv() ??
+    (await getBaseUrlFromHeaders()) ??
+    "http://localhost:3000";
+
+  try {
+    return new URL("/reset-password", baseUrl).toString();
+  } catch (error) {
+    console.warn(
+      "Invalid base URL for password reset redirect; falling back to localhost.",
+      error
+    );
+    return "http://localhost:3000/reset-password";
+  }
+}
+
+function getBaseUrlFromEnv(): string | undefined {
   const envUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXT_PUBLIC_VERCEL_URL ??
     process.env.VERCEL_URL;
 
-  if (envUrl) {
-    const baseUrl = envUrl.startsWith("http") ? envUrl : `https://${envUrl}`;
-
-    try {
-      return new URL("/reset-password", baseUrl).toString();
-    } catch (error) {
-      console.warn(
-        "Invalid base URL for password reset redirect; falling back to localhost.",
-        error
-      );
-    }
+  if (!envUrl) {
+    return undefined;
   }
 
-  return new URL("/reset-password", "http://localhost:3000").toString();
+  return envUrl.startsWith("http") ? envUrl : `https://${envUrl}`;
+}
+
+async function getBaseUrlFromHeaders(): Promise<string | undefined> {
+  try {
+    const headersList = await headers();
+
+    if (!headersList) {
+      return undefined;
+    }
+
+    const originHeader = headersList.get("origin");
+    if (originHeader && originHeader.startsWith("http")) {
+      return originHeader;
+    }
+
+    const protocolHeader = headersList.get("x-forwarded-proto");
+    const hostHeader =
+      headersList.get("x-forwarded-host") ?? headersList.get("host");
+
+    if (hostHeader) {
+      const protocol =
+        protocolHeader ??
+        (hostHeader.includes("localhost") || hostHeader.startsWith("127.")
+          ? "http"
+          : "https");
+      return `${protocol}://${hostHeader}`;
+    }
+  } catch (error) {
+    console.warn(
+      "Unable to resolve base URL from request headers; falling back to defaults.",
+      error
+    );
+  }
+
+  return undefined;
 }

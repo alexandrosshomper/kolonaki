@@ -42,10 +42,15 @@ const passwordTooShortMessage =
 const confirmPasswordMismatchMessage =
   "Confirm password did not match the password.";
 
+type ResetPasswordFormProps = React.ComponentProps<typeof Card> & {
+  notice?: { status: FieldStatus; message: string };
+};
+
 export function ResetPasswordForm({
   className,
+  notice,
   ...props
-}: React.ComponentProps<typeof Card>) {
+}: ResetPasswordFormProps) {
   const [state, setState] = useState<ResetPasswordFormState>(initialState);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -149,6 +154,13 @@ export function ResetPasswordForm({
     });
   }
 
+  const formNotice =
+    state.status !== "idle" && state.message
+      ? { status: state.status, message: state.message }
+      : undefined;
+
+  const activeNotice = formNotice ?? notice;
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Logo />
@@ -162,13 +174,18 @@ export function ResetPasswordForm({
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              {state.status === "error" && state.message ? (
+              {activeNotice?.message ? (
                 <p
                   aria-live="polite"
-                  role="alert"
-                  className="text-destructive text-sm"
+                  role={activeNotice.status === "error" ? "alert" : "status"}
+                  className={cn(
+                    "text-sm",
+                    activeNotice.status === "error"
+                      ? "text-destructive"
+                      : "text-green-600"
+                  )}
                 >
-                  {state.message}
+                  {activeNotice.message}
                 </p>
               ) : null}
               <Field>
