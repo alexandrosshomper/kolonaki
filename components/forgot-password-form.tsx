@@ -54,6 +54,9 @@ export function ForgotPasswordForm({
     FormData
   >(sendPasswordResetLink, initialState);
 
+  const redirectOrigin =
+    typeof window === "undefined" ? "" : window.location.origin;
+
   useEffect(() => {
     const nextEmail = email ?? queryEmail ?? "";
     setInputEmail(nextEmail);
@@ -80,6 +83,11 @@ export function ForgotPasswordForm({
         <CardContent>
           <form action={formAction}>
             <FieldGroup>
+              <input
+                type="hidden"
+                name="redirect-origin"
+                value={redirectOrigin}
+              />
               {state.message ? (
                 <p
                   aria-live="polite"

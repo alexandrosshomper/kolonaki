@@ -256,6 +256,11 @@ export async function sendPasswordResetLink(
 ): Promise<ForgotPasswordFormState> {
   const rawEmail = formData.get("email");
   const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
+  const redirectOriginEntry = formData.get("redirect-origin");
+  const redirectOrigin =
+    typeof redirectOriginEntry === "string"
+      ? normalizeRedirectOrigin(redirectOriginEntry)
+      : undefined;
 
   if (!email) {
     return {
@@ -275,7 +280,7 @@ export async function sendPasswordResetLink(
 
   const supabase = await createClient();
 
-  const redirectTo = await getResetPasswordRedirectUrl();
+  const redirectTo = await getResetPasswordRedirectUrl(redirectOrigin);
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
@@ -303,8 +308,11 @@ function isValidEmail(email: string): boolean {
   return emailPattern.test(email);
 }
 
-async function getResetPasswordRedirectUrl(): Promise<string> {
+async function getResetPasswordRedirectUrl(
+  preferredBase?: string
+): Promise<string> {
   const baseUrl =
+    preferredBase ??
     getBaseUrlFromEnv() ??
     (await getBaseUrlFromHeaders()) ??
     "http://localhost:3000";
@@ -318,6 +326,19 @@ async function getResetPasswordRedirectUrl(): Promise<string> {
     );
     return "http://localhost:3000/reset-password";
   }
+}
+
+function normalizeRedirectOrigin(origin: string): string | undefined {
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.origin;
+    }
+  } catch {
+    // ignore invalid origins
+  }
+
+  return undefined;
 }
 
 function getBaseUrlFromEnv(): string | undefined {
