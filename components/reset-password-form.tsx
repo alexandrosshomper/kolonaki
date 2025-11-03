@@ -77,36 +77,59 @@ export function ResetPasswordForm({
       return;
     }
 
-    const hashParams = new URLSearchParams(location.hash.slice(1));
-    const code = hashParams.get("code");
-    const error = hashParams.get("error");
-    const errorCode = hashParams.get("error_code");
-    const errorDescription = hashParams.get("error_description");
-
-    if (!code && !error && !errorCode) {
+    const hash = location.hash.startsWith("#")
+      ? location.hash.slice(1)
+      : location.hash;
+    if (!hash) {
       return;
     }
+
+    const hashParams = new URLSearchParams(hash);
+    const keysToTransfer = [
+      "code",
+      "error",
+      "error_code",
+      "error_description",
+      "access_token",
+      "refresh_token",
+      "expires_in",
+      "token_type",
+      "type",
+    ];
 
     const searchParams = new URLSearchParams(location.search);
     let shouldNavigate = false;
 
-    if (code && !searchParams.has("code")) {
-      searchParams.set("code", code);
-      shouldNavigate = true;
-    }
-
-    if ((error || errorCode) && !searchParams.has("status")) {
-      searchParams.set("status", "error");
-      shouldNavigate = true;
-
-      if (errorCode) {
-        searchParams.set("reason", errorCode);
-      } else if (error) {
-        searchParams.set("reason", error);
+    for (const key of keysToTransfer) {
+      if (!hashParams.has(key)) {
+        continue;
       }
 
-      if (errorDescription) {
-        searchParams.set("message", errorDescription);
+      if (key === "error" || key === "error_code") {
+        if (!searchParams.has("status")) {
+          searchParams.set("status", "error");
+          shouldNavigate = true;
+        }
+
+        if (!searchParams.has("reason")) {
+          searchParams.set("reason", hashParams.get("error_code") ?? hashParams.get("error") ?? "");
+          shouldNavigate = true;
+        }
+
+        if (
+          !searchParams.has("message") &&
+          hashParams.get("error_description")
+        ) {
+          searchParams.set("message", hashParams.get("error_description") ?? "");
+          shouldNavigate = true;
+        }
+
+        continue;
+      }
+
+      if (!searchParams.has(key)) {
+        searchParams.set(key, hashParams.get(key) ?? "");
+        shouldNavigate = true;
       }
     }
 
