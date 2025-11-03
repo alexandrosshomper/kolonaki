@@ -383,13 +383,23 @@ export async function resetPassword(
 }
 
 async function getResetPasswordRedirectUrl(): Promise<string> {
-  const baseUrl =
-    getBaseUrlFromEnv() ??
-    (await getBaseUrlFromHeaders()) ??
-    "http://localhost:3000";
+  const envBase = normalizeBaseUrl(getBaseUrlFromEnv());
+  const headerBase = normalizeBaseUrl(await getBaseUrlFromHeaders());
+  const fallbackBase = normalizeBaseUrl("http://localhost:3000");
+
+  const preferredBase =
+    choosePreferredBaseUrl(envBase, headerBase) ??
+    headerBase ??
+    envBase ??
+    fallbackBase;
 
   try {
-    return new URL("/reset-password", baseUrl).toString();
+    const baseForRedirect =
+      preferredBase ??
+      fallbackBase ??
+      new URL("http://localhost:3000");
+
+    return new URL("/reset-password", baseForRedirect).toString();
   } catch (error) {
     console.warn(
       "Invalid base URL for password reset redirect; falling back to localhost.",
@@ -400,11 +410,12 @@ async function getResetPasswordRedirectUrl(): Promise<string> {
 }
 
 function getBaseUrlFromEnv(): string | undefined {
-  const envUrl =
+  const envUrl = normalizeEmptyString(
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXT_PUBLIC_VERCEL_URL ??
-    process.env.VERCEL_URL;
+    process.env.VERCEL_URL
+  );
 
   if (!envUrl) {
     return undefined;
@@ -446,4 +457,100 @@ async function getBaseUrlFromHeaders(): Promise<string | undefined> {
   }
 
   return undefined;
+}
+
+function normalizeBaseUrl(
+  baseUrl: string | URL | undefined
+): URL | undefined {
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  const candidate =
+    typeof baseUrl === "string"
+      ? normalizeEmptyString(baseUrl)
+      : baseUrl.toString();
+
+  if (!candidate) {
+    return undefined;
+  }
+
+  const withProtocol = candidate.startsWith("http")
+    ? candidate
+    : `https://${candidate}`;
+
+  try {
+    const url = new URL(withProtocol);
+    if (isLocalHostname(url.hostname) && url.protocol !== "http:") {
+      url.protocol = "http:";
+    }
+    url.username = "";
+    url.password = "";
+    url.hash = "";
+    url.search = "";
+    return url;
+  } catch (error) {
+    console.warn(
+      "Unable to normalize base URL for password reset redirect.",
+      error
+    );
+    return undefined;
+  }
+}
+
+function choosePreferredBaseUrl(
+  envBase: URL | undefined,
+  headerBase: URL | undefined
+): URL | undefined {
+  if (!envBase && !headerBase) {
+    return undefined;
+  }
+
+  if (envBase && headerBase) {
+    const sameHostname =
+      envBase.hostname.toLowerCase() === headerBase.hostname.toLowerCase();
+    const samePort = envBase.port === headerBase.port;
+
+    if (sameHostname && samePort) {
+      if (envBase.protocol !== headerBase.protocol) {
+        if (headerBase.protocol === "https:") {
+          const adjusted = new URL(envBase.toString());
+          adjusted.protocol = "https:";
+          return adjusted;
+        }
+
+        if (
+          headerBase.protocol === "http:" &&
+          isLocalHostname(envBase.hostname)
+        ) {
+          const adjusted = new URL(envBase.toString());
+          adjusted.protocol = "http:";
+          return adjusted;
+        }
+      }
+
+      return envBase;
+    }
+  }
+
+  return envBase ?? headerBase;
+}
+
+function normalizeEmptyString(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function isLocalHostname(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized.startsWith("127.") ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local")
+  );
 }
