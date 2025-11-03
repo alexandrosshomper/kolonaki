@@ -410,9 +410,22 @@ async function getResetPasswordRedirectUrl(
 function normalizeRedirectOrigin(origin: string): string | undefined {
   try {
     const parsed = new URL(origin);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      return parsed.origin;
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
     }
+
+    const hostname = parsed.hostname;
+    const isLocalhost =
+      hostname === "localhost" ||
+      hostname === "[::1]" ||
+      hostname.startsWith("127.") ||
+      hostname.endsWith(".localhost");
+
+    if (parsed.protocol === "http:" && !isLocalhost) {
+      return `https://${parsed.host}`;
+    }
+
+    return parsed.origin;
   } catch {
     // ignore invalid origins
   }
