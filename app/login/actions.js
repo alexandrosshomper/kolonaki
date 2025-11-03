@@ -44,6 +44,9 @@ export const login = moduleNamespace.login;
 export const signup = moduleNamespace.signup;
 export const signout = moduleNamespace.signout;
 export const verifyOtp = moduleNamespace.verifyOtp;
+export const resendOtp = moduleNamespace.resendOtp;
+export const sendPasswordResetLink = moduleNamespace.sendPasswordResetLink;
+export const resetPassword = moduleNamespace.resetPassword;
 "use server"
 
 import { createClient } from "../../utils/supabase/server"
