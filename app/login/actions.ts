@@ -420,8 +420,9 @@ function normalizeRedirectOrigin(origin: string): string | undefined {
       hostname === "[::1]" ||
       hostname.startsWith("127.") ||
       hostname.endsWith(".localhost");
+    const isSslip = hostname.endsWith(".sslip.io");
 
-    if (parsed.protocol === "http:" && !isLocalhost) {
+    if (parsed.protocol === "http:" && !isLocalhost && !isSslip) {
       return `https://${parsed.host}`;
     }
 
