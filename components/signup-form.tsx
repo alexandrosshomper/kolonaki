@@ -1,11 +1,10 @@
 "use client";
 
-import * as React from "react";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
-import { signupAction } from "@/app/login/actions";
-import { initialState, type SignupFormState } from "@/types/auth";
 import { cn } from "@/lib/utils";
+import { signup } from "../app/login/actions";
+import type { FieldStatus, SignupFormState } from "../app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -15,81 +14,85 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Logo } from "./logo";
 
-function normalizeToState(res: unknown): SignupFormState {
-  if (res && typeof res === "object" && "status" in res) {
-    const result = res as Record<string, unknown>;
-    if (result.status === "success") {
-      const message =
-        typeof result.message === "string"
-          ? result.message
-          : "Success";
-      const email =
-        typeof result.email === "string" ? result.email : undefined;
-      return { status: "success", message, email };
-    }
-
-    if (result.status === "error") {
-      const message =
-        typeof result.message === "string"
-          ? result.message
-          : "Something went wrong.";
-      const email =
-        typeof result.email === "string" ? result.email : undefined;
-      return { status: "error", message, email };
-    }
-  }
-
-  return {
-    status: "error",
-    message: "Unexpected response from signup.",
-  };
-}
-
-async function reducer(
-  _prev: SignupFormState,
-  formData: FormData
-): Promise<SignupFormState> {
-  try {
-    const res = await signupAction(formData);
-    const nextState = normalizeToState(res);
-    if (nextState.status === "error" && !nextState.email) {
-      const email = formData.get("email");
-      if (typeof email === "string" && email.length > 0) {
-        return { ...nextState, email };
-      }
-    }
-    return nextState;
-  } catch (error) {
-    const message =
-      error instanceof Error && error.message
-        ? error.message
-        : "Unknown error.";
-    const email = formData.get("email");
-    return {
-      status: "error",
-      message,
-      email: typeof email === "string" ? email : undefined,
-    };
-  }
-}
+const initialState: SignupFormState = {
+  status: "idle",
+  message: null,
+  email: "",
+  passwordStatus: "idle",
+  confirmPasswordStatus: "idle",
+  shouldResetPasswords: false,
+};
 
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const [state, formAction] = useActionState<SignupFormState, FormData>(
-    reducer,
+    signup,
     initialState
   );
+  const [email, setEmail] = useState(initialState.email);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const emailFieldValue =
-    state.status === "success" || state.status === "error"
-      ? state.email ?? ""
-      : "";
+  useEffect(() => {
+    setEmail(state.email);
+  }, [state.email]);
+
+  useEffect(() => {
+    if (state.shouldResetPasswords || state.status === "success") {
+      setPassword("");
+      setConfirmPassword("");
+    }
+  }, [state.shouldResetPasswords, state.status]);
+
+  const passwordStatus = state.passwordStatus ?? "idle";
+  const confirmPasswordStatus = state.confirmPasswordStatus ?? "idle";
+
+  const passwordRequirementsMet = password.length >= 8;
+  const confirmPasswordRequirementsMet =
+    passwordRequirementsMet &&
+    confirmPassword.length > 0 &&
+    confirmPassword === password;
+
+  const successInputClasses =
+    "border-green-500 focus-visible:border-green-500 focus-visible:ring-green-500/50";
+  const errorInputClasses =
+    "border-destructive focus-visible:border-destructive";
+
+  const activePasswordStatus: FieldStatus =
+    password.length > 0
+      ? passwordRequirementsMet
+        ? "success"
+        : "idle"
+      : passwordStatus;
+
+  const activeConfirmPasswordStatus: FieldStatus =
+    confirmPassword.length > 0 || password.length > 0
+      ? confirmPasswordRequirementsMet
+        ? "success"
+        : "idle"
+      : confirmPasswordStatus;
+
+  const passwordClasses =
+    activePasswordStatus === "error"
+      ? errorInputClasses
+      : activePasswordStatus === "success"
+      ? successInputClasses
+      : undefined;
+
+  const confirmPasswordClasses =
+    activeConfirmPasswordStatus === "error"
+      ? errorInputClasses
+      : activeConfirmPasswordStatus === "success"
+      ? successInputClasses
+      : undefined;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
+      <Logo />
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form action={formAction} className="p-6 md:p-8">
@@ -97,7 +100,7 @@ export function SignupForm({
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Create your account</h1>
                 <p className="text-muted-foreground text-sm text-balance">
-                  Enter your email below to create your Kolonaki account
+                  Enter your email below to create your account
                 </p>
               </div>
               {state.status === "error" && state.message ? (
@@ -109,25 +112,16 @@ export function SignupForm({
                   {state.message}
                 </p>
               ) : null}
-              {state.status === "success" && state.message ? (
-                <p
-                  aria-live="polite"
-                  role="status"
-                  className="text-sm text-emerald-600"
-                >
-                  {state.message}
-                </p>
-              ) : null}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
-                  key={emailFieldValue}
                   id="email"
                   name="email"
                   type="email"
                   required
                   placeholder="m@example.com"
-                  defaultValue={emailFieldValue}
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
                 <FieldDescription>
                   We&apos;ll use this to contact you. We will not share your
@@ -143,6 +137,10 @@ export function SignupForm({
                       name="password"
                       type="password"
                       required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      aria-invalid={activePasswordStatus === "error" || undefined}
+                      className={passwordClasses}
                     />
                   </Field>
                   <Field>
@@ -154,6 +152,14 @@ export function SignupForm({
                       name="confirm-password"
                       type="password"
                       required
+                      value={confirmPassword}
+                      onChange={(event) =>
+                        setConfirmPassword(event.target.value)
+                      }
+                      aria-invalid={
+                        activeConfirmPasswordStatus === "error" || undefined
+                      }
+                      className={confirmPasswordClasses}
                     />
                   </Field>
                 </Field>
@@ -162,9 +168,7 @@ export function SignupForm({
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit" disabled={state.status === "submitting"}>
-                  Create Account
-                </Button>
+                <Button type="submit">Create Account</Button>
               </Field>
 
               <FieldDescription className="text-center">
@@ -174,7 +178,7 @@ export function SignupForm({
           </form>
           <div className="bg-muted relative hidden md:block">
             <img
-              src="/moods/greek-forest.png"
+              src="/moods/ionic-column-athean-forest.png"
               alt="Image"
               className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
             />

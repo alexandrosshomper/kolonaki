@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 import * as React from "react";
 import type { User } from "@supabase/supabase-js";
+
+import { createClient } from "@/utils/supabase/client";
 import {
   IconCamera,
   IconChartBar,
@@ -34,6 +35,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import Image from "next/image";
+
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user?: User | null;
+};
 
 const data = {
   navMain: [
@@ -147,35 +153,21 @@ const data = {
   ],
 };
 
-type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
-  user: User | null;
-};
-
-const FALLBACK_AVATAR =
-  "https://www.gravatar.com/avatar/?d=mp";
-
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
-  const [fullName, setFullName] = useState<string | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const getProfile = useCallback(async () => {
-    if (!user?.id) {
-      setFullName(user?.user_metadata?.full_name ?? null);
-      setUsername(user?.user_metadata?.user_name ?? null);
-      setAvatarUrl(user?.user_metadata?.avatar_url ?? null);
-      setLoading(false);
-      return;
-    }
+  const [fullname, setFullname] = useState(null);
+  const [username, setUsername] = useState(null);
+  const [website, setWebsite] = useState(null);
 
+  const getProfile = useCallback(async () => {
     try {
       setLoading(true);
 
       const { data, error, status } = await supabase
         .from("profiles")
         .select(`full_name, username, website, avatar_url`)
-        .eq("id", user.id)
+        .eq("id", user?.id)
         .single();
 
       if (error && status !== 406) {
@@ -183,24 +175,21 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       }
 
       if (data) {
-        setFullName(data.full_name ?? null);
-        setUsername(data.username ?? null);
-        setAvatarUrl(data.avatar_url ?? null);
-      } else {
-        setFullName(user.user_metadata?.full_name ?? null);
-        setUsername(user.user_metadata?.user_name ?? null);
-        setAvatarUrl(user.user_metadata?.avatar_url ?? null);
+        setFullname(data.full_name);
+        setUsername(data.username);
+        setWebsite(data.website);
       }
     } catch (error) {
-      console.error("Error loading user data", error);
+      alert("Error loading user data!");
     } finally {
       setLoading(false);
     }
-  }, [supabase, user]);
+  }, [user, supabase]);
 
   useEffect(() => {
     getProfile();
   }, [user, getProfile]);
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -211,8 +200,15 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <Image
+                  className="dark:invert"
+                  src="/kolonaki-logo.png"
+                  alt="Kolonaki logo"
+                  width={32}
+                  height={32}
+                  priority
+                />
+                <span className="text-base font-semibold">Kolonaki</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -225,21 +221,18 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <NavUser
-          user={{
-            name:
-              (loading ? "Loading..." : null) ??
-              fullName ??
-              user?.user_metadata?.full_name ??
-              username ??
-              user?.email ??
-              "User",
-            email: user?.email ?? "",
-            avatar:
-              (loading ? FALLBACK_AVATAR : null) ??
-              avatarUrl ??
-              user?.user_metadata?.avatar_url ??
-              FALLBACK_AVATAR,
-          }}
+          user={
+            user
+              ? {
+                  name: user.user_metadata?.full_name ?? user.email ?? "Unknown user",
+                  email: user.email ?? "unknown@example.com",
+                  avatar:
+                    (typeof user.user_metadata?.avatar_url === "string"
+                      ? user.user_metadata.avatar_url
+                      : undefined) ?? "",
+                }
+              : undefined
+          }
         />
       </SidebarFooter>
     </Sidebar>
