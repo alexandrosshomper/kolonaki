@@ -1,3 +1,12 @@
+const envCandidates = {
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_PROJECT_URL: process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL,
+  SUPABASE_PROJECT_URL: process.env.SUPABASE_PROJECT_URL,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+};
+
 const SUPABASE_URL_ENV_KEYS = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "SUPABASE_URL",
@@ -37,7 +46,7 @@ export function getSupabaseCredentials() {
 
 function readFirstPresentEnv(keys) {
   for (const key of keys) {
-    const value = normalizeEmptyString(process.env[key]);
+    const value = normalizeEmptyString(envCandidates[key]);
     if (value) {
       return value;
     }
