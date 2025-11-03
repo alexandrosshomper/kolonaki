@@ -1,6 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useActionState } from "react";
+import {
+  FormEvent,
+  useActionState,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/ui/button";
@@ -122,14 +128,18 @@ export function ResetPasswordForm({
     window.location.replace(nextUrl);
   }, []);
 
+  const resetClientState = useEffectEvent(() => {
+    setPassword("");
+    setConfirmPassword("");
+    setClientState(initialState);
+  });
+
   useEffect(() => {
     if (!serverState.shouldResetPasswords) {
       return;
     }
 
-    setPassword("");
-    setConfirmPassword("");
-    setClientState(initialState);
+    resetClientState();
   }, [serverState.shouldResetPasswords]);
 
   const state = chooseState(serverState, clientState);

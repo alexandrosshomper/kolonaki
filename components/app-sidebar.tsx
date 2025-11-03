@@ -14,7 +14,6 @@ import {
   IconFileWord,
   IconFolder,
   IconHelp,
-  IconInnerShadowTop,
   IconListDetails,
   IconReport,
   IconSearch,
@@ -155,10 +154,8 @@ const data = {
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const supabase = React.useMemo(() => createClient(), []);
-  const [loading, setLoading] = useState(true);
-  const [fullname, setFullname] = useState(null);
-  const [username, setUsername] = useState(null);
-  const [website, setWebsite] = useState(null);
+  const [fullName, setFullName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -166,19 +163,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     async function getProfile() {
       if (!user?.id) {
         if (isMounted) {
-          setFullname(null);
-          setUsername(null);
-          setWebsite(null);
-          setLoading(false);
+          setFullName(null);
+          setAvatarUrl(null);
         }
         return;
       }
 
       try {
-        if (isMounted) {
-          setLoading(true);
-        }
-
         const { data, error, status } = await supabase
           .from("profiles")
           .select(`full_name, username, website, avatar_url`)
@@ -190,17 +181,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         }
 
         if (data && isMounted) {
-          setFullname(data.full_name);
-          setUsername(data.username);
-          setWebsite(data.website);
+          setFullName(data.full_name ?? null);
+          setAvatarUrl(
+            typeof data.avatar_url === "string" ? data.avatar_url : null
+          );
         }
       } catch (error) {
         if (isMounted) {
-          alert("Error loading user data!");
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
+          console.error("Error loading user data", error);
         }
       }
     }
@@ -246,12 +234,18 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           user={
             user
               ? {
-                  name: user.user_metadata?.full_name ?? user.email ?? "Unknown user",
+                  name:
+                    fullName ??
+                    user.user_metadata?.full_name ??
+                    user.email ??
+                    "Unknown user",
                   email: user.email ?? "unknown@example.com",
                   avatar:
+                    avatarUrl ??
                     (typeof user.user_metadata?.avatar_url === "string"
                       ? user.user_metadata.avatar_url
-                      : undefined) ?? "",
+                      : undefined) ??
+                    "",
                 }
               : undefined
           }

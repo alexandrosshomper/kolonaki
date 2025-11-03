@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useEffectEvent, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/ui/button";
@@ -57,9 +57,12 @@ export function ForgotPasswordForm({
   const redirectOrigin =
     typeof window === "undefined" ? "" : window.location.origin;
 
-  useEffect(() => {
-    const nextEmail = email ?? queryEmail ?? "";
+  const updateInputEmail = useEffectEvent((nextEmail: string) => {
     setInputEmail(nextEmail);
+  });
+
+  useEffect(() => {
+    updateInputEmail(email ?? queryEmail ?? "");
   }, [email, queryEmail]);
 
   useEffect(() => {
@@ -67,7 +70,7 @@ export function ForgotPasswordForm({
       return;
     }
 
-    setInputEmail(state.email);
+    updateInputEmail(state.email);
   }, [state.email, state.status]);
 
   return (
