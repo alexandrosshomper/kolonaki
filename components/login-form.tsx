@@ -1,7 +1,5 @@
-"use client";
-
-import { useState } from "react";
-
+import { cn } from "@/lib/utils";
+import { login } from "../app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -9,24 +7,16 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { login } from "../app/login/actions";
-import { Logo } from "./logo";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [email, setEmail] = useState("");
-  const forgotPasswordHref = email
-    ? `/forgot-password?email=${encodeURIComponent(email)}`
-    : "/forgot-password";
-
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Logo />
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form className="p-6 md:p-8">
@@ -34,7 +24,7 @@ export function LoginForm({
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Welcome back</h1>
                 <p className="text-muted-foreground text-balance">
-                  Login to your Acme Inc account
+                  Login to your Kolonaki account
                 </p>
               </div>
               <Field>
@@ -45,15 +35,13 @@ export function LoginForm({
                   type="email"
                   required
                   placeholder="m@example.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
                 />
               </Field>
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
                   <a
-                    href={forgotPasswordHref}
+                    href="#"
                     className="ml-auto text-sm underline-offset-2 hover:underline"
                   >
                     Forgot your password?
@@ -73,7 +61,7 @@ export function LoginForm({
           </form>
           <div className="bg-muted relative hidden md:block">
             <img
-              src="/moods/ionic-column-cretan-hill.png"
+              src="/moods/crete-hill.png"
               alt="Image"
               className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
             />

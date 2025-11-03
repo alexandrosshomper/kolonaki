@@ -1,68 +1,31 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-import { getSupabaseCredentials } from "./config";
-
 export async function createClient() {
-  const cookieStore = cookies();
-  const { supabaseUrl, supabaseAnonKey } = getSupabaseCredentials();
+  const cookieStore = await cookies();
 
   // Create a server's supabase client with newly configured cookie,
   // which could be used to maintain user's session
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name) {
-        const cookie =
-          typeof cookieStore.get === "function"
-            ? cookieStore.get(name)
-            : undefined;
-        if (!cookie) {
-          return undefined;
-        }
-
-        return typeof cookie === "string" ? cookie : cookie.value;
-      },
-      async set(name, value, options) {
-        if (typeof cookieStore.set !== "function") {
-          return;
-        }
-
-        try {
-          cookieStore.set(name, value, options);
-        } catch (error) {
-          console.warn(
-            "Unable to persist Supabase auth cookies from this context.",
-            error
-          );
-        }
-      },
-      async remove(name, options) {
-        if (typeof cookieStore.delete === "function") {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
           try {
-            cookieStore.delete(name, options);
-          } catch (error) {
-            console.warn(
-              "Unable to remove Supabase auth cookies from this context.",
-              error
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
             );
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
           }
-          return;
-        }
-
-        if (typeof cookieStore.set === "function") {
-          try {
-            cookieStore.set(name, "", {
-              ...options,
-              maxAge: 0,
-            });
-          } catch (error) {
-            console.warn(
-              "Unable to clear Supabase auth cookies from this context.",
-              error
-            );
-          }
-        }
+        },
       },
-    },
-  });
+    }
+  );
 }
