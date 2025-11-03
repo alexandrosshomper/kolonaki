@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import * as React from "react";
 import type { User } from "@supabase/supabase-js";
 
@@ -154,41 +154,63 @@ const data = {
 };
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
-  const supabase = createClient();
+  const supabase = React.useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(true);
   const [fullname, setFullname] = useState(null);
   const [username, setUsername] = useState(null);
   const [website, setWebsite] = useState(null);
 
-  const getProfile = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const { data, error, status } = await supabase
-        .from("profiles")
-        .select(`full_name, username, website, avatar_url`)
-        .eq("id", user?.id)
-        .single();
-
-      if (error && status !== 406) {
-        throw error;
-      }
-
-      if (data) {
-        setFullname(data.full_name);
-        setUsername(data.username);
-        setWebsite(data.website);
-      }
-    } catch (error) {
-      alert("Error loading user data!");
-    } finally {
-      setLoading(false);
-    }
-  }, [user, supabase]);
-
   useEffect(() => {
-    getProfile();
-  }, [user, getProfile]);
+    let isMounted = true;
+
+    async function getProfile() {
+      if (!user?.id) {
+        if (isMounted) {
+          setFullname(null);
+          setUsername(null);
+          setWebsite(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        if (isMounted) {
+          setLoading(true);
+        }
+
+        const { data, error, status } = await supabase
+          .from("profiles")
+          .select(`full_name, username, website, avatar_url`)
+          .eq("id", user.id)
+          .single();
+
+        if (error && status !== 406) {
+          throw error;
+        }
+
+        if (data && isMounted) {
+          setFullname(data.full_name);
+          setUsername(data.username);
+          setWebsite(data.website);
+        }
+      } catch (error) {
+        if (isMounted) {
+          alert("Error loading user data!");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void getProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase, user?.id]);
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

@@ -174,8 +174,9 @@ export function ResetPasswordForm({
         : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     if (!passwordRequirementsMet) {
-      event.preventDefault();
       setClientState({
         status: "error",
         message: passwordTooShortMessage,
@@ -187,7 +188,6 @@ export function ResetPasswordForm({
     }
 
     if (!confirmPasswordRequirementsMet) {
-      event.preventDefault();
       setClientState({
         status: "error",
         message: confirmPasswordMismatchMessage,
@@ -203,6 +203,10 @@ export function ResetPasswordForm({
       status: "idle",
       message: null,
     }));
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    formAction(formData);
   }
 
   const formNotice =
