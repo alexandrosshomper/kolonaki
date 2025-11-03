@@ -25,9 +25,15 @@ export default async function Page({
   searchParams,
 }: ResetPasswordPageProps) {
   const code = extractParam(searchParams?.code);
+  const accessToken = extractParam(searchParams?.access_token);
+  const refreshToken = extractParam(searchParams?.refresh_token);
 
   if (code) {
     await exchangeCodeAndRedirect(code);
+  }
+
+  if (accessToken && refreshToken) {
+    await establishSessionAndRedirect(accessToken, refreshToken);
   }
 
   const error = extractParam(searchParams?.error);
@@ -99,6 +105,37 @@ async function exchangeCodeAndRedirect(code: string) {
   if (error) {
     params.set("status", "error");
     params.set("reason", error.name ?? "code_exchange_failed");
+    params.set(
+      "message",
+      error.message ??
+        "We could not verify your reset link. Please request a new email."
+    );
+  } else {
+    params.set("status", "success");
+    params.set(
+      "message",
+      "Reset link confirmed. You can now choose a new password."
+    );
+  }
+
+  redirect(`/reset-password?${params.toString()}`);
+}
+
+async function establishSessionAndRedirect(
+  accessToken: string,
+  refreshToken: string
+) {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  const params = new URLSearchParams();
+
+  if (error) {
+    params.set("status", "error");
+    params.set("reason", error.name ?? "session_establish_failed");
     params.set(
       "message",
       error.message ??

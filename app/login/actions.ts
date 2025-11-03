@@ -265,11 +265,6 @@ export async function sendPasswordResetLink(
 ): Promise<ForgotPasswordFormState> {
   const rawEmail = formData.get("email");
   const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
-  const redirectOriginEntry = formData.get("redirect-origin");
-  const redirectOrigin =
-    typeof redirectOriginEntry === "string"
-      ? normalizeRedirectOrigin(redirectOriginEntry)
-      : undefined;
 
   if (!email) {
     return {
@@ -289,7 +284,7 @@ export async function sendPasswordResetLink(
 
   const supabase = await createClient();
 
-  const redirectTo = await getResetPasswordRedirectUrl(redirectOrigin);
+  const redirectTo = await getResetPasswordRedirectUrl();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
@@ -387,11 +382,8 @@ export async function resetPassword(
   };
 }
 
-async function getResetPasswordRedirectUrl(
-  preferredBase?: string
-): Promise<string> {
+async function getResetPasswordRedirectUrl(): Promise<string> {
   const baseUrl =
-    preferredBase ??
     getBaseUrlFromEnv() ??
     (await getBaseUrlFromHeaders()) ??
     "http://localhost:3000";
@@ -405,33 +397,6 @@ async function getResetPasswordRedirectUrl(
     );
     return "http://localhost:3000/reset-password";
   }
-}
-
-function normalizeRedirectOrigin(origin: string): string | undefined {
-  try {
-    const parsed = new URL(origin);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return undefined;
-    }
-
-    const hostname = parsed.hostname;
-    const isLocalhost =
-      hostname === "localhost" ||
-      hostname === "[::1]" ||
-      hostname.startsWith("127.") ||
-      hostname.endsWith(".localhost");
-    const isSslip = hostname.endsWith(".sslip.io");
-
-    if (parsed.protocol === "http:" && !isLocalhost && !isSslip) {
-      return `https://${parsed.host}`;
-    }
-
-    return parsed.origin;
-  } catch {
-    // ignore invalid origins
-  }
-
-  return undefined;
 }
 
 function getBaseUrlFromEnv(): string | undefined {
