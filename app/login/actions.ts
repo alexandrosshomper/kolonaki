@@ -1,7 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
-
 import { createClient } from "../../utils/supabase/server";
 
 export type FieldStatus = "idle" | "error" | "success";
@@ -23,12 +21,6 @@ export type ResetPasswordFormState = {
   shouldResetPasswords: boolean;
 };
 
-export type ForgotPasswordFormState = {
-  status: FieldStatus;
-  message: string | null;
-  email: string;
-};
-
 async function revalidateRootLayout() {
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/otp", "layout");
@@ -36,7 +28,6 @@ async function revalidateRootLayout() {
 
 const VERIFY_OTP_ERROR_PREFIX = "Supabase verify OTP error:";
 const RESEND_OTP_ERROR_PREFIX = "Supabase resend OTP error:";
-const RESET_PASSWORD_EMAIL_ERROR_PREFIX = "Supabase reset password email error:";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -259,59 +250,6 @@ export async function resendOtp(formData: FormData) {
   redirect(`/otp?${params.toString()}`);
 }
 
-export async function sendPasswordResetLink(
-  prevState: ForgotPasswordFormState,
-  formData: FormData
-): Promise<ForgotPasswordFormState> {
-  const rawEmail = formData.get("email");
-  const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
-
-  if (!email) {
-    return {
-      status: "error",
-      message: "Email is required.",
-      email: prevState.email,
-    };
-  }
-
-  if (!isValidEmail(email)) {
-    return {
-      status: "error",
-      message: "Please enter a valid email address.",
-      email,
-    };
-  }
-
-  const supabase = await createClient();
-
-  const redirectTo = await getResetPasswordRedirectUrl();
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo,
-  });
-
-  if (error) {
-    console.error(RESET_PASSWORD_EMAIL_ERROR_PREFIX, error);
-
-    return {
-      status: "error",
-      message: error.message ?? "Unable to send a reset password link.",
-      email,
-    };
-  }
-
-  return {
-    status: "success",
-    message: "Check your email for a link to reset your password.",
-    email: "",
-  };
-}
-
-function isValidEmail(email: string): boolean {
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailPattern.test(email);
-}
-
 export async function resetPassword(
   prevState: ResetPasswordFormState,
   formData: FormData
@@ -380,177 +318,4 @@ export async function resetPassword(
     confirmPasswordStatus: "success",
     shouldResetPasswords: true,
   };
-}
-
-async function getResetPasswordRedirectUrl(): Promise<string> {
-  const envBase = normalizeBaseUrl(getBaseUrlFromEnv());
-  const headerBase = normalizeBaseUrl(await getBaseUrlFromHeaders());
-  const fallbackBase = normalizeBaseUrl("http://localhost:3000");
-
-  const preferredBase =
-    choosePreferredBaseUrl(envBase, headerBase) ??
-    headerBase ??
-    envBase ??
-    fallbackBase;
-
-  try {
-    const baseForRedirect =
-      preferredBase ??
-      fallbackBase ??
-      new URL("http://localhost:3000");
-
-    return new URL("/reset-password", baseForRedirect).toString();
-  } catch (error) {
-    console.warn(
-      "Invalid base URL for password reset redirect; falling back to localhost.",
-      error
-    );
-    return "http://localhost:3000/reset-password";
-  }
-}
-
-function getBaseUrlFromEnv(): string | undefined {
-  const envUrl = normalizeEmptyString(
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXT_PUBLIC_VERCEL_URL ??
-    process.env.VERCEL_URL
-  );
-
-  if (!envUrl) {
-    return undefined;
-  }
-
-  return envUrl.startsWith("http") ? envUrl : `https://${envUrl}`;
-}
-
-async function getBaseUrlFromHeaders(): Promise<string | undefined> {
-  try {
-    const headersList = await headers();
-
-    if (!headersList) {
-      return undefined;
-    }
-
-    const originHeader = headersList.get("origin");
-    if (originHeader && originHeader.startsWith("http")) {
-      return originHeader;
-    }
-
-    const protocolHeader = headersList.get("x-forwarded-proto");
-    const hostHeader =
-      headersList.get("x-forwarded-host") ?? headersList.get("host");
-
-    if (hostHeader) {
-      const protocol =
-        protocolHeader ??
-        (hostHeader.includes("localhost") || hostHeader.startsWith("127.")
-          ? "http"
-          : "https");
-      return `${protocol}://${hostHeader}`;
-    }
-  } catch (error) {
-    console.warn(
-      "Unable to resolve base URL from request headers; falling back to defaults.",
-      error
-    );
-  }
-
-  return undefined;
-}
-
-function normalizeBaseUrl(
-  baseUrl: string | URL | undefined
-): URL | undefined {
-  if (!baseUrl) {
-    return undefined;
-  }
-
-  const candidate =
-    typeof baseUrl === "string"
-      ? normalizeEmptyString(baseUrl)
-      : baseUrl.toString();
-
-  if (!candidate) {
-    return undefined;
-  }
-
-  const withProtocol = candidate.startsWith("http")
-    ? candidate
-    : `https://${candidate}`;
-
-  try {
-    const url = new URL(withProtocol);
-    if (isLocalHostname(url.hostname) && url.protocol !== "http:") {
-      url.protocol = "http:";
-    }
-    url.username = "";
-    url.password = "";
-    url.hash = "";
-    url.search = "";
-    return url;
-  } catch (error) {
-    console.warn(
-      "Unable to normalize base URL for password reset redirect.",
-      error
-    );
-    return undefined;
-  }
-}
-
-function choosePreferredBaseUrl(
-  envBase: URL | undefined,
-  headerBase: URL | undefined
-): URL | undefined {
-  if (!envBase && !headerBase) {
-    return undefined;
-  }
-
-  if (envBase && headerBase) {
-    const sameHostname =
-      envBase.hostname.toLowerCase() === headerBase.hostname.toLowerCase();
-    const samePort = envBase.port === headerBase.port;
-
-    if (sameHostname && samePort) {
-      if (envBase.protocol !== headerBase.protocol) {
-        if (headerBase.protocol === "https:") {
-          const adjusted = new URL(envBase.toString());
-          adjusted.protocol = "https:";
-          return adjusted;
-        }
-
-        if (
-          headerBase.protocol === "http:" &&
-          isLocalHostname(envBase.hostname)
-        ) {
-          const adjusted = new URL(envBase.toString());
-          adjusted.protocol = "http:";
-          return adjusted;
-        }
-      }
-
-      return envBase;
-    }
-  }
-
-  return envBase ?? headerBase;
-}
-
-function normalizeEmptyString(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function isLocalHostname(hostname: string) {
-  const normalized = hostname.toLowerCase();
-  return (
-    normalized === "localhost" ||
-    normalized.startsWith("127.") ||
-    normalized.endsWith(".localhost") ||
-    normalized.endsWith(".local")
-  );
 }
