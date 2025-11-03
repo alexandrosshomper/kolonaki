@@ -54,7 +54,8 @@ function deriveSupabaseUrlFromAnonKey(anonKey) {
     }
 
     const payloadJson = parseBase64UrlJson(payloadPart);
-    const issuer = typeof payloadJson?.iss === "string" ? payloadJson.iss : null;
+    const issuer =
+      typeof payloadJson?.iss === "string" ? payloadJson.iss : null;
 
     if (issuer) {
       try {
@@ -75,8 +76,8 @@ function deriveSupabaseUrlFromAnonKey(anonKey) {
       typeof payloadJson?.project_id === "string"
         ? payloadJson.project_id
         : typeof payloadJson?.projectId === "string"
-          ? payloadJson.projectId
-          : undefined;
+        ? payloadJson.projectId
+        : undefined;
 
     if (!projectId) {
       return undefined;
@@ -84,10 +85,7 @@ function deriveSupabaseUrlFromAnonKey(anonKey) {
 
     return `https://${projectId}.supabase.co`;
   } catch (error) {
-    console.warn(
-      "Unable to derive Supabase URL from anon key payload.",
-      error
-    );
+    console.warn("Unable to derive Supabase URL from anon key payload.", error);
     return undefined;
   }
 }
