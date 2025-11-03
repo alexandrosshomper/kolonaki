@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,16 +19,12 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { FieldStatus } from "@/app/login/actions";
+import {
+  type FieldStatus,
+  type ResetPasswordFormState,
+  resetPassword,
+} from "@/app/login/actions";
 import { Logo } from "./logo";
-
-type ResetPasswordFormState = {
-  status: FieldStatus;
-  message: string | null;
-  passwordStatus: FieldStatus;
-  confirmPasswordStatus: FieldStatus;
-  shouldResetPasswords: boolean;
-};
 
 const initialState: ResetPasswordFormState = {
   status: "idle",
@@ -42,6 +39,15 @@ const passwordTooShortMessage =
 const confirmPasswordMismatchMessage =
   "Confirm password did not match the password.";
 
+function ResetPasswordButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? "Saving..." : "Reset Password"}
+    </Button>
+  );
+}
+
 type ResetPasswordFormProps = React.ComponentProps<typeof Card> & {
   notice?: { status: FieldStatus; message: string };
 };
@@ -51,35 +57,82 @@ export function ResetPasswordForm({
   notice,
   ...props
 }: ResetPasswordFormProps) {
-  const [state, setState] = useState<ResetPasswordFormState>(initialState);
+  const [serverState, formAction] = useActionState<
+    ResetPasswordFormState,
+    FormData
+  >(resetPassword, initialState);
+  const [clientState, setClientState] =
+    useState<ResetPasswordFormState>(initialState);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
-    if (!state.shouldResetPasswords) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const { location } = window;
+
+    if (!location.hash) {
+      return;
+    }
+
+    const hashParams = new URLSearchParams(location.hash.slice(1));
+    const code = hashParams.get("code");
+    const error = hashParams.get("error");
+    const errorCode = hashParams.get("error_code");
+    const errorDescription = hashParams.get("error_description");
+
+    if (!code && !error && !errorCode) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    let shouldNavigate = false;
+
+    if (code && !searchParams.has("code")) {
+      searchParams.set("code", code);
+      shouldNavigate = true;
+    }
+
+    if ((error || errorCode) && !searchParams.has("status")) {
+      searchParams.set("status", "error");
+      shouldNavigate = true;
+
+      if (errorCode) {
+        searchParams.set("reason", errorCode);
+      } else if (error) {
+        searchParams.set("reason", error);
+      }
+
+      if (errorDescription) {
+        searchParams.set("message", errorDescription);
+      }
+    }
+
+    if (!shouldNavigate) {
+      return;
+    }
+
+    const nextUrl =
+      searchParams.size > 0
+        ? `${location.pathname}?${searchParams.toString()}`
+        : location.pathname;
+
+    window.location.replace(nextUrl);
+  }, []);
+
+  useEffect(() => {
+    if (!serverState.shouldResetPasswords) {
       return;
     }
 
     setPassword("");
     setConfirmPassword("");
+    setClientState(initialState);
+  }, [serverState.shouldResetPasswords]);
 
-    setState((previous) => {
-      if (!previous.shouldResetPasswords) {
-        return previous;
-      }
-
-      return {
-        ...previous,
-        shouldResetPasswords: false,
-        ...(previous.status === "success"
-          ? {
-              passwordStatus: "idle",
-              confirmPasswordStatus: "idle",
-            }
-          : {}),
-      };
-    });
-  }, [state.shouldResetPasswords]);
+  const state = chooseState(serverState, clientState);
 
   const passwordRequirementsMet = password.length >= 8;
   const confirmPasswordRequirementsMet =
@@ -110,48 +163,46 @@ export function ResetPasswordForm({
     activePasswordStatus === "error"
       ? errorInputClasses
       : activePasswordStatus === "success"
-      ? successInputClasses
-      : undefined;
+        ? successInputClasses
+        : undefined;
 
   const confirmPasswordClasses =
     activeConfirmPasswordStatus === "error"
       ? errorInputClasses
       : activeConfirmPasswordStatus === "success"
-      ? successInputClasses
-      : undefined;
+        ? successInputClasses
+        : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (!passwordRequirementsMet) {
       event.preventDefault();
-      setState({
+      setClientState({
         status: "error",
         message: passwordTooShortMessage,
         passwordStatus: "error",
         confirmPasswordStatus: "idle",
-        shouldResetPasswords: true,
+        shouldResetPasswords: false,
       });
       return;
     }
 
     if (!confirmPasswordRequirementsMet) {
       event.preventDefault();
-      setState({
+      setClientState({
         status: "error",
         message: confirmPasswordMismatchMessage,
         passwordStatus: "success",
         confirmPasswordStatus: "error",
-        shouldResetPasswords: true,
+        shouldResetPasswords: false,
       });
       return;
     }
 
-    setState({
-      status: "success",
+    setClientState((previous) => ({
+      ...previous,
+      status: "idle",
       message: null,
-      passwordStatus: "success",
-      confirmPasswordStatus: "success",
-      shouldResetPasswords: true,
-    });
+    }));
   }
 
   const formNotice =
@@ -172,7 +223,7 @@ export function ResetPasswordForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit}>
+          <form action={formAction} method="post" onSubmit={handleSubmit}>
             <FieldGroup>
               {activeNotice?.message ? (
                 <p
@@ -228,7 +279,7 @@ export function ResetPasswordForm({
               </Field>
               <FieldGroup>
                 <Field>
-                  <Button type="submit">Reset Password</Button>
+                  <ResetPasswordButton />
                   <FieldDescription className="px-6 text-center">
                     Remember your password? <a href="/login">Sign in</a>
                   </FieldDescription>
@@ -240,4 +291,18 @@ export function ResetPasswordForm({
       </Card>
     </div>
   );
+}
+
+function chooseState(
+  serverState: ResetPasswordFormState,
+  clientState: ResetPasswordFormState
+): ResetPasswordFormState {
+  const hasServerFeedback =
+    serverState.status !== "idle" ||
+    !!serverState.message ||
+    serverState.passwordStatus !== "idle" ||
+    serverState.confirmPasswordStatus !== "idle" ||
+    serverState.shouldResetPasswords;
+
+  return hasServerFeedback ? serverState : clientState;
 }

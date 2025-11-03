@@ -15,6 +15,14 @@ export type SignupFormState = {
   shouldResetPasswords: boolean;
 };
 
+export type ResetPasswordFormState = {
+  status: FieldStatus;
+  message: string | null;
+  passwordStatus: FieldStatus;
+  confirmPasswordStatus: FieldStatus;
+  shouldResetPasswords: boolean;
+};
+
 export type ForgotPasswordFormState = {
   status: FieldStatus;
   message: string | null;
@@ -28,7 +36,7 @@ async function revalidateRootLayout() {
 
 const VERIFY_OTP_ERROR_PREFIX = "Supabase verify OTP error:";
 const RESEND_OTP_ERROR_PREFIX = "Supabase resend OTP error:";
-const RESET_PASSWORD_ERROR_PREFIX = "Supabase reset password error:";
+const RESET_PASSWORD_EMAIL_ERROR_PREFIX = "Supabase reset password email error:";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -66,6 +74,12 @@ export async function login(formData: FormData) {
 }
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
+const PASSWORD_TOO_SHORT_MESSAGE =
+  "Password too short. Password needs to be at least 8 characters long.";
+const CONFIRM_PASSWORD_MISMATCH_MESSAGE =
+  "Confirm password did not match the password.";
+const RESET_PASSWORD_UPDATE_ERROR_PREFIX =
+  "Supabase reset password update error:";
 
 export async function signup(
   prevState: SignupFormState,
@@ -74,11 +88,6 @@ export async function signup(
   const email = formData.get("email");
   const password = formData.get("password");
   const confirmPassword = formData.get("confirm-password");
-
-  const passwordTooShortMessage =
-    "Password too short. Password needs to be at least 8 characters long.";
-  const confirmPasswordMismatchMessage =
-    "Confirm password did not match the password.";
 
   const emailValue = typeof email === "string" ? email : prevState.email;
 
@@ -96,7 +105,7 @@ export async function signup(
   if (password.length < 8) {
     return {
       status: "error",
-      message: passwordTooShortMessage,
+      message: PASSWORD_TOO_SHORT_MESSAGE,
       email: emailValue,
       passwordStatus: "error",
       confirmPasswordStatus: "idle",
@@ -107,7 +116,7 @@ export async function signup(
   if (password !== confirmPassword) {
     return {
       status: "error",
-      message: confirmPasswordMismatchMessage,
+      message: CONFIRM_PASSWORD_MISMATCH_MESSAGE,
       email: emailValue,
       passwordStatus: "success",
       confirmPasswordStatus: "error",
@@ -287,7 +296,7 @@ export async function sendPasswordResetLink(
   });
 
   if (error) {
-    console.error(RESET_PASSWORD_ERROR_PREFIX, error);
+    console.error(RESET_PASSWORD_EMAIL_ERROR_PREFIX, error);
 
     return {
       status: "error",
@@ -306,6 +315,76 @@ export async function sendPasswordResetLink(
 function isValidEmail(email: string): boolean {
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailPattern.test(email);
+}
+
+export async function resetPassword(
+  prevState: ResetPasswordFormState,
+  formData: FormData
+): Promise<ResetPasswordFormState> {
+  const passwordEntry = formData.get("password");
+  const confirmPasswordEntry = formData.get("confirm-password");
+
+  const password =
+    typeof passwordEntry === "string" ? passwordEntry.trim() : "";
+  const confirmPassword =
+    typeof confirmPasswordEntry === "string"
+      ? confirmPasswordEntry.trim()
+      : "";
+
+  if (!password || !confirmPassword) {
+    return {
+      status: "error",
+      message: "Password and confirmation are required.",
+      passwordStatus: password ? "success" : "error",
+      confirmPasswordStatus: confirmPassword ? "success" : "error",
+      shouldResetPasswords: false,
+    };
+  }
+
+  if (password.length < 8) {
+    return {
+      status: "error",
+      message: PASSWORD_TOO_SHORT_MESSAGE,
+      passwordStatus: "error",
+      confirmPasswordStatus: "idle",
+      shouldResetPasswords: false,
+    };
+  }
+
+  if (password !== confirmPassword) {
+    return {
+      status: "error",
+      message: CONFIRM_PASSWORD_MISMATCH_MESSAGE,
+      passwordStatus: "success",
+      confirmPasswordStatus: "error",
+      shouldResetPasswords: false,
+    };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    console.error(RESET_PASSWORD_UPDATE_ERROR_PREFIX, error);
+
+    return {
+      status: "error",
+      message:
+        error.message ?? "Unable to update your password. Please try again.",
+      passwordStatus: "success",
+      confirmPasswordStatus: "success",
+      shouldResetPasswords: false,
+    };
+  }
+
+  return {
+    status: "success",
+    message: "Your password has been updated. You can now sign in.",
+    passwordStatus: "success",
+    confirmPasswordStatus: "success",
+    shouldResetPasswords: true,
+  };
 }
 
 async function getResetPasswordRedirectUrl(

@@ -1,5 +1,6 @@
 import { ResetPasswordForm } from "@/components/reset-password-form";
 import type { FieldStatus } from "@/app/login/actions";
+import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
 type ResetPasswordPageProps = {
@@ -20,7 +21,15 @@ function extractParam(
   return value;
 }
 
-export default function Page({ searchParams }: ResetPasswordPageProps) {
+export default async function Page({
+  searchParams,
+}: ResetPasswordPageProps) {
+  const code = extractParam(searchParams?.code);
+
+  if (code) {
+    await exchangeCodeAndRedirect(code);
+  }
+
   const error = extractParam(searchParams?.error);
   const errorCode = extractParam(searchParams?.error_code);
   const errorDescription = extractParam(searchParams?.error_description);
@@ -79,4 +88,29 @@ export default function Page({ searchParams }: ResetPasswordPageProps) {
       </div>
     </div>
   );
+}
+
+async function exchangeCodeAndRedirect(code: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+  const params = new URLSearchParams();
+
+  if (error) {
+    params.set("status", "error");
+    params.set("reason", error.name ?? "code_exchange_failed");
+    params.set(
+      "message",
+      error.message ??
+        "We could not verify your reset link. Please request a new email."
+    );
+  } else {
+    params.set("status", "success");
+    params.set(
+      "message",
+      "Reset link confirmed. You can now choose a new password."
+    );
+  }
+
+  redirect(`/reset-password?${params.toString()}`);
 }
