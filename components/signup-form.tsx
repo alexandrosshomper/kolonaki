@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
@@ -38,13 +38,21 @@ export function SignupForm({
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
-    setEmail(state.email);
-  }, [state.email]);
+    if (state.email === email) {
+      return;
+    }
+
+    startTransition(() => {
+      setEmail(state.email);
+    });
+  }, [email, state.email]);
 
   useEffect(() => {
     if (state.shouldResetPasswords || state.status === "success") {
-      setPassword("");
-      setConfirmPassword("");
+      startTransition(() => {
+        setPassword("");
+        setConfirmPassword("");
+      });
     }
   }, [state.shouldResetPasswords, state.status]);
 
