@@ -1,0 +1,18 @@
+version: '3'
+
+tasks:
+  lint:
+    desc: Run eslint checks
+    cmds:
+      - npm run lint
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - npm test
+
+  ci:
+    desc: Run linting and tests like CI
+    deps:
+      - lint
+      - test
