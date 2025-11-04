@@ -10,6 +10,9 @@ export async function createClient() {
   // Create a server's supabase client with newly configured cookie,
   // which could be used to maintain user's session
   return createServerClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      flowType: "implicit",
+    },
     cookies: {
       get(name) {
         const cookie =
