@@ -109,8 +109,9 @@ export function ForgotPasswordForm({
 
     try {
       const supabase = createClient();
-      const redirectTo = new URL("/reset-password", window.location.origin)
-        .toString();
+      const redirectTo = new URL(
+        `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`
+      ).toString();
 
       const { error } = await supabase.auth.resetPasswordForEmail(
         trimmedEmail,

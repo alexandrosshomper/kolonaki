@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState, useActionState } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +67,11 @@ export function ResetPasswordForm({
     useState<ResetPasswordFormState>(initialState);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchParamsKey = searchParams.toString();
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -97,7 +104,7 @@ export function ResetPasswordForm({
       "type",
     ];
 
-    const searchParams = new URLSearchParams(location.search);
+    const nextSearchParams = new URLSearchParams(location.search);
     let shouldNavigate = false;
 
     for (const key of keysToTransfer) {
@@ -106,29 +113,35 @@ export function ResetPasswordForm({
       }
 
       if (key === "error" || key === "error_code") {
-        if (!searchParams.has("status")) {
-          searchParams.set("status", "error");
+        if (!nextSearchParams.has("status")) {
+          nextSearchParams.set("status", "error");
           shouldNavigate = true;
         }
 
-        if (!searchParams.has("reason")) {
-          searchParams.set("reason", hashParams.get("error_code") ?? hashParams.get("error") ?? "");
+        if (!nextSearchParams.has("reason")) {
+          nextSearchParams.set(
+            "reason",
+            hashParams.get("error_code") ?? hashParams.get("error") ?? ""
+          );
           shouldNavigate = true;
         }
 
         if (
-          !searchParams.has("message") &&
+          !nextSearchParams.has("message") &&
           hashParams.get("error_description")
         ) {
-          searchParams.set("message", hashParams.get("error_description") ?? "");
+          nextSearchParams.set(
+            "message",
+            hashParams.get("error_description") ?? ""
+          );
           shouldNavigate = true;
         }
 
         continue;
       }
 
-      if (!searchParams.has(key)) {
-        searchParams.set(key, hashParams.get(key) ?? "");
+      if (!nextSearchParams.has(key)) {
+        nextSearchParams.set(key, hashParams.get(key) ?? "");
         shouldNavigate = true;
       }
     }
@@ -138,12 +151,59 @@ export function ResetPasswordForm({
     }
 
     const nextUrl =
-      searchParams.size > 0
-        ? `${location.pathname}?${searchParams.toString()}`
+      nextSearchParams.size > 0
+        ? `${location.pathname}?${nextSearchParams.toString()}`
         : location.pathname;
 
-    window.location.replace(nextUrl);
-  }, []);
+    router.replace(nextUrl);
+  }, [router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || sessionReady) {
+      return;
+    }
+
+    const hasAuthParams =
+      window.location.search.includes("code=") ||
+      window.location.search.includes("access_token=") ||
+      window.location.search.includes("error=");
+
+    if (!hasAuthParams) {
+      return;
+    }
+
+    setSessionReady(false);
+    setSessionError(null);
+
+    let isActive = true;
+
+    const run = async () => {
+      const supabase = createClient();
+      const { error } = await supabase.auth.exchangeCodeForSession(
+        window.location.href
+      );
+
+      if (error) {
+        console.error("exchangeCodeForSession error:", error);
+        if (isActive) {
+          setSessionError(error.message ?? "Invalid or expired reset link.");
+          setSessionReady(false);
+        }
+        return;
+      }
+
+      if (isActive) {
+        setSessionError(null);
+        setSessionReady(true);
+      }
+    };
+
+    run();
+
+    return () => {
+      isActive = false;
+    };
+  }, [searchParamsKey, sessionReady]);
 
   useEffect(() => {
     if (!serverState.shouldResetPasswords) {
@@ -186,15 +246,15 @@ export function ResetPasswordForm({
     activePasswordStatus === "error"
       ? errorInputClasses
       : activePasswordStatus === "success"
-        ? successInputClasses
-        : undefined;
+      ? successInputClasses
+      : undefined;
 
   const confirmPasswordClasses =
     activeConfirmPasswordStatus === "error"
       ? errorInputClasses
       : activeConfirmPasswordStatus === "success"
-        ? successInputClasses
-        : undefined;
+      ? successInputClasses
+      : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (!passwordRequirementsMet) {
@@ -246,70 +306,74 @@ export function ResetPasswordForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={formAction} method="post" onSubmit={handleSubmit}>
-            <FieldGroup>
-              {activeNotice?.message ? (
-                <p
-                  aria-live="polite"
-                  role={activeNotice.status === "error" ? "alert" : "status"}
-                  className={cn(
-                    "text-sm",
-                    activeNotice.status === "error"
-                      ? "text-destructive"
-                      : "text-green-600"
-                  )}
-                >
-                  {activeNotice.message}
-                </p>
-              ) : null}
-              <Field>
-                <FieldLabel htmlFor="password">Password</FieldLabel>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  aria-invalid={activePasswordStatus === "error" || undefined}
-                  className={passwordClasses}
-                />
-                <FieldDescription>
-                  Must be at least 8 characters long.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="confirm-password">
-                  Confirm Password
-                </FieldLabel>
-                <Input
-                  id="confirm-password"
-                  name="confirm-password"
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(event) =>
-                    setConfirmPassword(event.target.value)
-                  }
-                  aria-invalid={
-                    activeConfirmPasswordStatus === "error" || undefined
-                  }
-                  className={confirmPasswordClasses}
-                />
-                <FieldDescription>
-                  Please confirm your password.
-                </FieldDescription>
-              </Field>
+          {!sessionReady ? (
+            <p className="text-sm text-muted-foreground">
+              {sessionError ?? "Validating reset link…"}
+            </p>
+          ) : (
+            <form action={formAction} method="post" onSubmit={handleSubmit}>
               <FieldGroup>
+                {activeNotice?.message ? (
+                  <p
+                    aria-live="polite"
+                    role={activeNotice.status === "error" ? "alert" : "status"}
+                    className={cn(
+                      "text-sm",
+                      activeNotice.status === "error"
+                        ? "text-destructive"
+                        : "text-green-600"
+                    )}
+                  >
+                    {activeNotice.message}
+                  </p>
+                ) : null}
                 <Field>
-                  <ResetPasswordButton />
-                  <FieldDescription className="px-6 text-center">
-                    Remember your password? <a href="/login">Sign in</a>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    aria-invalid={activePasswordStatus === "error" || undefined}
+                    className={passwordClasses}
+                  />
+                  <FieldDescription>
+                    Must be at least 8 characters long.
                   </FieldDescription>
                 </Field>
+                <Field>
+                  <FieldLabel htmlFor="confirm-password">
+                    Confirm Password
+                  </FieldLabel>
+                  <Input
+                    id="confirm-password"
+                    name="confirm-password"
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    aria-invalid={
+                      activeConfirmPasswordStatus === "error" || undefined
+                    }
+                    className={confirmPasswordClasses}
+                  />
+                  <FieldDescription>
+                    Please confirm your password.
+                  </FieldDescription>
+                </Field>
+                <FieldGroup>
+                  <Field>
+                    <ResetPasswordButton />
+                    <FieldDescription className="px-6 text-center">
+                      Remember your password? <a href="/login">Sign in</a>
+                    </FieldDescription>
+                  </Field>
+                </FieldGroup>
               </FieldGroup>
-            </FieldGroup>
-          </form>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
