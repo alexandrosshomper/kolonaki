@@ -1,6 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useActionState } from "react";
+import {
+  FormEvent,
+  startTransition,
+  useEffect,
+  useState,
+  useActionState,
+} from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -172,12 +178,22 @@ export function ResetPasswordForm({
       return;
     }
 
-    setSessionReady(false);
-    setSessionError(null);
-
     let isActive = true;
 
     const run = async () => {
+      if (!isActive) {
+        return;
+      }
+
+      startTransition(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setSessionReady(false);
+        setSessionError(null);
+      });
+
       const supabase = createClient();
       const { error } = await supabase.auth.exchangeCodeForSession(
         window.location.href
@@ -186,15 +202,29 @@ export function ResetPasswordForm({
       if (error) {
         console.error("exchangeCodeForSession error:", error);
         if (isActive) {
-          setSessionError(error.message ?? "Invalid or expired reset link.");
-          setSessionReady(false);
+          startTransition(() => {
+            if (!isActive) {
+              return;
+            }
+
+            setSessionError(
+              error.message ?? "Invalid or expired reset link."
+            );
+            setSessionReady(false);
+          });
         }
         return;
       }
 
       if (isActive) {
-        setSessionError(null);
-        setSessionReady(true);
+        startTransition(() => {
+          if (!isActive) {
+            return;
+          }
+
+          setSessionError(null);
+          setSessionReady(true);
+        });
       }
     };
 
@@ -210,9 +240,11 @@ export function ResetPasswordForm({
       return;
     }
 
-    setPassword("");
-    setConfirmPassword("");
-    setClientState(initialState);
+    startTransition(() => {
+      setPassword("");
+      setConfirmPassword("");
+      setClientState(() => ({ ...initialState }));
+    });
   }, [serverState.shouldResetPasswords]);
 
   const state = chooseState(serverState, clientState);
