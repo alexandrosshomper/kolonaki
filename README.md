@@ -23,6 +23,13 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Project Guides
+
+- [Architecture Overview](docs/architecture.md) – high-level tour of the
+  directory structure and flow orchestration.
+- [Contributing Guide](CONTRIBUTING.md) – setup steps, Supabase provisioning,
+  and task conventions for new changes.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

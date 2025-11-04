@@ -47,3 +47,15 @@ export const verifyOtp = moduleNamespace.verifyOtp;
 export const resendOtp = moduleNamespace.resendOtp;
 export const sendPasswordResetLink = moduleNamespace.sendPasswordResetLink;
 export const resetPassword = moduleNamespace.resetPassword;
+
+const actions = {
+  login,
+  signup,
+  signout,
+  verifyOtp,
+  resendOtp,
+  sendPasswordResetLink,
+  resetPassword,
+};
+
+export default actions;
