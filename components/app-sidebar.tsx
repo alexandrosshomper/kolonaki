@@ -4,6 +4,7 @@ import * as React from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "@/utils/supabase/client";
+import { toast } from "sonner";
 import {
   IconCamera,
   IconChartBar,
@@ -156,18 +157,23 @@ const data = {
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
-  const [fullname, setFullname] = useState(null);
-  const [username, setUsername] = useState(null);
-  const [website, setWebsite] = useState(null);
+  const [fullname, setFullname] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [website, setWebsite] = useState<string | null>(null);
 
   const getProfile = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
       const { data, error, status } = await supabase
         .from("profiles")
         .select(`full_name, username, website, avatar_url`)
-        .eq("id", user?.id)
+        .eq("id", user.id)
         .single();
 
       if (error && status !== 406) {
@@ -180,7 +186,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         setWebsite(data.website);
       }
     } catch (error) {
-      alert("Error loading user data!");
+      toast.error("Error loading user data!");
     } finally {
       setLoading(false);
     }
