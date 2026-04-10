@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
+import { toast } from "sonner";
 
 export default function Avatar({ uid, url, size, onUpload }) {
   const supabase = createClient();
@@ -50,7 +51,7 @@ export default function Avatar({ uid, url, size, onUpload }) {
 
       onUpload(filePath);
     } catch (error) {
-      alert("Error uploading avatar!");
+      toast.error("Error uploading avatar!");
     } finally {
       setUploading(false);
     }

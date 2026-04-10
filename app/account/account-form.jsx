@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { toast } from "sonner";
 import Avatar from "./avatar";
 
 export default function AccountForm({ user }) {
@@ -30,7 +31,7 @@ export default function AccountForm({ user }) {
         setWebsite(data.website);
       }
     } catch (error) {
-      alert("Error loading user data!");
+      toast.error("Error loading user data!");
     } finally {
       setLoading(false);
     }
@@ -40,7 +41,7 @@ export default function AccountForm({ user }) {
     getProfile();
   }, [user, getProfile]);
 
-  async function updateProfile({ username, website, avatar_url }) {
+  async function updateProfile({ username, website }) {
     try {
       setLoading(true);
 
@@ -52,9 +53,9 @@ export default function AccountForm({ user }) {
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
-      alert("Profile updated!");
+      toast.success("Profile updated!");
     } catch (error) {
-      alert("Error updating the data!");
+      toast.error("Error updating the data!");
     } finally {
       setLoading(false);
     }
@@ -98,7 +99,7 @@ export default function AccountForm({ user }) {
       <div>
         <button
           className="button primary block"
-          onClick={() => updateProfile({ fullname, username, website })}
+          onClick={() => updateProfile({ username, website })}
           disabled={loading}
         >
           {loading ? "Loading ..." : "Update"}
