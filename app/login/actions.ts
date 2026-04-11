@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "../../utils/supabase/server";
+import { sendKolonakiEmail } from "@/lib/kolonaki/email";
+import { acceptInvitation } from "@/lib/kolonaki/actions";
 
 export type FieldStatus = "idle" | "error" | "success";
 
@@ -204,7 +206,27 @@ export async function verifyOtp(formData: FormData) {
   }
 
   await revalidateRootLayout();
-  redirect("/dashboard");
+
+  const {
+    data: { user: confirmedUser },
+  } = await supabase.auth.getUser();
+
+  // Welcome email — fire-and-forget, confirmed address only
+  if (confirmedUser?.email) {
+    sendKolonakiEmail("signup", confirmedUser.email);
+  }
+
+  // Invite token: set on /invite/accept before signup, consumed here after confirmation
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const inviteToken = cookieStore.get("kolonaki_invite_token")?.value;
+  if (inviteToken) {
+    cookieStore.delete("kolonaki_invite_token");
+    await acceptInvitation(inviteToken).catch(console.error);
+    redirect("/onboarding/checklist");
+  }
+
+  redirect("/onboarding/segmentation");
 }
 
 export async function resendOtp(formData: FormData) {
