@@ -1,16 +1,30 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
+import { acceptInvitation } from "@/lib/kolonaki/actions";
 import config from "@/kolonaki.config";
 import { ChecklistClient } from "./checklist-client";
 
-export default async function ChecklistPage() {
+interface Props {
+  searchParams: Promise<{ accept_token?: string }>;
+}
+
+export default async function ChecklistPage({ searchParams }: Props) {
+  const { accept_token } = await searchParams;
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  // Process invite acceptance before segmentation check so the token is
+  // never silently dropped on the redirect to /onboarding/segmentation.
+  if (accept_token) {
+    await acceptInvitation(accept_token).catch(console.error);
+  }
+
   if (!user.user_metadata?.segmentation) redirect("/onboarding/segmentation");
 
   const seg: Record<string, string> = user.user_metadata.segmentation ?? {};
