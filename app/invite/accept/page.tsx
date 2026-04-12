@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import config from "@/kolonaki.config";
 
@@ -32,18 +31,9 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    // Set cookie so the token survives the signup → OTP → verify flow.
-    // Belt-and-suspenders: the URL also carries the token via ?invite_token= on the signup redirect.
-    const cookieStore = await cookies();
-    cookieStore.set("kolonaki_invite_token", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 30 * 60, // 30 minutes
-      path: "/",
-    });
-
-    redirect(`/signup?invite_token=${encodeURIComponent(token)}`);
+    // Redirect to the Route Handler which sets the httpOnly cookie then
+    // forwards to /signup. Server Components cannot write cookies directly.
+    redirect(`/invite/set-cookie?token=${encodeURIComponent(token)}`);
   }
 
   // Authenticated — show accept UI
