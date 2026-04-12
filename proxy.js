@@ -3,7 +3,9 @@ import { updateSession } from "@/utils/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabaseCredentials } from "@/utils/supabase/config";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/invite/accept"];
+// /invite/accept is intentionally NOT protected — it handles unauthenticated users
+// by setting an invite cookie and redirecting to /signup. Middleware must let it through.
+const PROTECTED_PREFIXES = ["/dashboard", "/onboarding"];
 
 export async function proxy(request) {
   // Always refresh the auth session first (updates session cookies)
