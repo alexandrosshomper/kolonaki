@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 
-mock.module("next/cache", {
+mock.module("next/cache.js", {
   exports: {
     revalidatePath: () => {},
   },

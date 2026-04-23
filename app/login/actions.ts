@@ -22,7 +22,7 @@ export type ResetPasswordFormState = {
 };
 
 async function revalidateRootLayout() {
-  const { revalidatePath } = await import("next/cache");
+  const { revalidatePath } = await import("next/cache.js");
   revalidatePath("/otp", "layout");
 }
 
