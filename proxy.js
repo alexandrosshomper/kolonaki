@@ -5,7 +5,7 @@ import { getSupabaseCredentials } from "@/utils/supabase/config";
 
 // /invite/accept is intentionally NOT protected — it handles unauthenticated users
 // by setting an invite cookie and redirecting to /signup. Middleware must let it through.
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding"];
+const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/account"];
 
 // Authenticated users visiting these paths are bounced to /dashboard
 const AUTH_ONLY_PATHS = ["/login", "/signup", "/forgot-password"];
