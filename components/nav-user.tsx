@@ -1,5 +1,6 @@
 "use client";
 import { signout } from "../app/login/actions";
+import posthog from "posthog-js";
 
 import {
   IconCreditCard,
@@ -98,7 +99,13 @@ export function NavUser({ user }: NavUserProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signout}>
+            <DropdownMenuItem
+              onClick={() => {
+                posthog.capture("user_logged_out");
+                posthog.reset();
+                signout();
+              }}
+            >
               <IconLogout />
               Log out
             </DropdownMenuItem>

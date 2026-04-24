@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { sendInvitation } from "@/lib/kolonaki/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function InviteForm() {
   const router = useRouter();
@@ -47,7 +48,11 @@ export function InviteForm() {
         required
         disabled={isPending}
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <Button type="submit" disabled={!email || isPending}>
         {isPending ? "Sending…" : "Send Invite →"}
       </Button>

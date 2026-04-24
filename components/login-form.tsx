@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,14 +11,21 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
-import { login } from "../app/login/actions";
+import { login, type LoginFormState } from "../app/login/actions";
 import { Logo } from "./logo";
+
+const initialState: LoginFormState = { status: "idle", message: null };
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [state, formAction] = useActionState<LoginFormState, FormData>(
+    login,
+    initialState
+  );
   const [email, setEmail] = useState("");
   const forgotPasswordHref = email
     ? `/forgot-password?email=${encodeURIComponent(email)}`
@@ -29,7 +36,7 @@ export function LoginForm({
       <Logo />
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
-          <form className="p-6 md:p-8">
+          <form action={formAction} className="p-6 md:p-8">
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Welcome back</h1>
@@ -37,6 +44,11 @@ export function LoginForm({
                   Login to your Acme Inc account
                 </p>
               </div>
+              {state.status === "error" && state.message ? (
+                <Alert variant="destructive" aria-live="polite">
+                  <AlertDescription>{state.message}</AlertDescription>
+                </Alert>
+              ) : null}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
@@ -62,9 +74,7 @@ export function LoginForm({
                 <Input id="password" name="password" type="password" required />
               </Field>
               <Field>
-                <Button type="submit" formAction={login}>
-                  Login
-                </Button>
+                <Button type="submit">Login</Button>
               </Field>
               <FieldDescription className="text-center">
                 Don&apos;t have an account? <a href="/signup">Sign up</a>

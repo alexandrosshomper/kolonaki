@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { trackAhaEvent } from "@/lib/kolonaki/actions";
 
 interface StepData {
   id: string;
@@ -22,25 +22,14 @@ interface Props {
 }
 
 export function ChecklistClient({ steps: initialSteps, ahaReached: initialAha, ahaEventLabel }: Props) {
-  const [steps, setSteps] = useState(initialSteps);
-  const [ahaReached, setAhaReached] = useState(initialAha);
-  const [isPending, startTransition] = useTransition();
+  const [steps] = useState(initialSteps);
+  const [ahaReached] = useState(initialAha);
 
   const completedCount = steps.filter((s) => s.done).length;
   const totalSteps = steps.length;
 
   // Find the current active step (first non-done, non-auto-completed)
   const currentIndex = steps.findIndex((s) => !s.done && !s.completedOnSignup);
-
-  async function handleStepAction(stepId: string) {
-    startTransition(async () => {
-      const result = await trackAhaEvent(stepId);
-      setSteps((prev) =>
-        prev.map((s) => (s.id === stepId ? { ...s, done: true } : s))
-      );
-      if (result.aha) setAhaReached(true);
-    });
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -104,14 +93,14 @@ export function ChecklistClient({ steps: initialSteps, ahaReached: initialAha, a
                     <p className="text-xs text-muted-foreground">{step.description}</p>
                   )}
                   {isCurrent && step.actionHref && step.actionLabel && !step.done && (
-                    <button
-                      type="button"
-                      onClick={() => handleStepAction(step.id)}
-                      disabled={isPending || isLocked}
-                      className="mt-1 text-xs underline text-foreground text-left disabled:opacity-50"
+                    // Navigate to the product feature; developer calls trackAhaEvent()
+                    // from their feature page to mark the step complete.
+                    <Link
+                      href={step.actionHref}
+                      className="mt-1 text-xs underline text-foreground"
                     >
                       {step.actionLabel} →
-                    </button>
+                    </Link>
                   )}
                 </div>
               </div>

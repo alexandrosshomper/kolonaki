@@ -13,7 +13,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");
 
-  if (!token) {
+  // Validate UUID format before touching cookies or redirects.
+  // invitations.token is gen_random_uuid() — anything else is invalid or tampered.
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!token || !UUID_RE.test(token)) {
     return NextResponse.redirect(new URL("/signup", request.url));
   }
 

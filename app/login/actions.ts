@@ -2,7 +2,8 @@
 
 import { createClient } from "../../utils/supabase/server";
 import { sendKolonakiEmail } from "@/lib/kolonaki/email";
-import { acceptInvitation } from "@/lib/kolonaki/actions";
+import { acceptInvitation, completeSegmentation } from "@/lib/kolonaki/actions";
+import { posthog } from "@/lib/posthog/server";
 
 export type FieldStatus = "idle" | "error" | "success";
 
@@ -10,9 +11,15 @@ export type SignupFormState = {
   status: FieldStatus;
   message: string | null;
   email: string;
+  emailStatus: FieldStatus;
   passwordStatus: FieldStatus;
   confirmPasswordStatus: FieldStatus;
   shouldResetPasswords: boolean;
+};
+
+export type LoginFormState = {
+  status: FieldStatus;
+  message: string | null;
 };
 
 export type ResetPasswordFormState = {
@@ -31,39 +38,65 @@ async function revalidateRootLayout() {
 const VERIFY_OTP_ERROR_PREFIX = "Supabase verify OTP error:";
 const RESEND_OTP_ERROR_PREFIX = "Supabase resend OTP error:";
 
-export async function login(formData: FormData) {
+export async function login(
+  prevState: LoginFormState,
+  formData: FormData
+): Promise<LoginFormState> {
   const supabase = await createClient();
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
   const emailEntry = formData.get("email");
   const passwordEntry = formData.get("password");
 
-  const data = {
+  const credentials = {
     email: typeof emailEntry === "string" ? emailEntry : "",
     password: typeof passwordEntry === "string" ? passwordEntry : "",
   };
 
-  const { error } = await supabase.auth.signInWithPassword(data);
+  const { data: authData, error } = await supabase.auth.signInWithPassword(credentials);
 
   if (error) {
     console.error("Supabase login error:", error);
 
-    const errorDetails = new URLSearchParams({
-      message: error.message ?? "Unable to log in right now.",
-    });
+    // Unconfirmed email: redirect to check-email with guidance
+    const isUnconfirmed =
+      error.code === "email_not_confirmed" ||
+      error.message?.toLowerCase().includes("email not confirmed");
 
-    if (error.status) {
-      errorDetails.set("status", String(error.status));
+    if (isUnconfirmed) {
+      const params = new URLSearchParams({
+        message:
+          "Please confirm your email before signing in. Check your inbox for the confirmation link.",
+      });
+      if (credentials.email) {
+        params.set("email", credentials.email);
+      }
+      const { redirect } = await import("next/navigation");
+      redirect(`/check-email?${params.toString()}`);
     }
 
-    const { redirect } = await import("next/navigation");
-    redirect(`/error?${errorDetails.toString()}`);
+    return {
+      status: "error",
+      message: error.message ?? "Unable to log in right now.",
+    };
+  }
+
+  if (authData.user) {
+    posthog.identify({
+      distinctId: authData.user.id,
+      properties: { email: authData.user.email },
+    });
+    posthog.capture({
+      distinctId: authData.user.id,
+      event: "user_logged_in",
+      properties: { email: authData.user.email },
+    });
   }
 
   await revalidateRootLayout();
   const { redirect } = await import("next/navigation");
   redirect("/dashboard");
+
+  return { status: "idle", message: null };
 }
 
 const SIGNUP_ERROR_PREFIX = "Supabase signup error:";
@@ -89,6 +122,7 @@ export async function signup(
       status: "error",
       message: "Password and confirmation are required.",
       email: emailValue,
+      emailStatus: "idle",
       passwordStatus: "error",
       confirmPasswordStatus: "error",
       shouldResetPasswords: true,
@@ -100,6 +134,7 @@ export async function signup(
       status: "error",
       message: PASSWORD_TOO_SHORT_MESSAGE,
       email: emailValue,
+      emailStatus: "idle",
       passwordStatus: "error",
       confirmPasswordStatus: "idle",
       shouldResetPasswords: true,
@@ -111,6 +146,7 @@ export async function signup(
       status: "error",
       message: CONFIRM_PASSWORD_MISMATCH_MESSAGE,
       email: emailValue,
+      emailStatus: "idle",
       passwordStatus: "success",
       confirmPasswordStatus: "error",
       shouldResetPasswords: true,
@@ -124,30 +160,54 @@ export async function signup(
     password,
   };
 
-  const { error } = await supabase.auth.signUp(data);
+  const { data: signUpData, error } = await supabase.auth.signUp({
+    ...data,
+    options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+    },
+  });
 
   if (error) {
     console.error(SIGNUP_ERROR_PREFIX, error);
+
+    // Already-registered email: redirect to /check-email without revealing
+    // whether the address exists (Supabase notifies the existing user separately)
+    const isDuplicate =
+      error.code === "user_already_exists" ||
+      error.message?.toLowerCase().includes("user already registered");
+
+    if (isDuplicate) {
+      const { redirect } = await import("next/navigation");
+      redirect("/check-email");
+    }
 
     return {
       status: "error",
       message: error.message ?? "Unable to sign up right now.",
       email: emailValue,
+      emailStatus: "error",
       passwordStatus: "success",
       confirmPasswordStatus: "success",
       shouldResetPasswords: false,
     };
   }
 
-  await revalidateRootLayout();
+  if (signUpData.user) {
+    posthog.capture({
+      distinctId: signUpData.user.id,
+      event: "user_signed_up",
+      properties: { email: signUpData.user.email },
+    });
+  }
 
   const { redirect } = await import("next/navigation");
-  redirect(`/otp?email=${encodeURIComponent(emailValue)}`);
+  redirect("/check-email");
 
   return {
     status: "success",
     message: null,
     email: "",
+    emailStatus: "success",
     passwordStatus: "success",
     confirmPasswordStatus: "success",
     shouldResetPasswords: false,
@@ -190,7 +250,7 @@ export async function verifyOtp(formData: FormData) {
   const { error } = await supabase.auth.verifyOtp({
     email,
     token,
-    type: "signup",
+    type: "email",
   });
 
   if (error) {
@@ -211,6 +271,18 @@ export async function verifyOtp(formData: FormData) {
     data: { user: confirmedUser },
   } = await supabase.auth.getUser();
 
+  if (confirmedUser) {
+    posthog.identify({
+      distinctId: confirmedUser.id,
+      properties: { email: confirmedUser.email },
+    });
+    posthog.capture({
+      distinctId: confirmedUser.id,
+      event: "otp_verified",
+      properties: { email: confirmedUser.email },
+    });
+  }
+
   // Welcome email — fire-and-forget, confirmed address only
   if (confirmedUser?.email) {
     sendKolonakiEmail("signup", confirmedUser.email);
@@ -223,6 +295,9 @@ export async function verifyOtp(formData: FormData) {
   if (inviteToken) {
     cookieStore.delete("kolonaki_invite_token");
     await acceptInvitation(inviteToken).catch(console.error);
+    // Seed segmentation: {} so the checklist page guard passes (invitees skip segmentation).
+    // Also seeds completedOnSignup steps the same way completeSegmentation would.
+    await completeSegmentation({}).catch(console.error);
     redirect("/onboarding/checklist");
   }
 
@@ -262,6 +337,15 @@ export async function resendOtp(formData: FormData) {
 
     redirect(`/otp?${params.toString()}`);
   }
+
+  // Use email as distinctId here: the user is unauthenticated at OTP resend time,
+  // so user.id is unavailable. PostHog will merge this into the identified profile
+  // once the user completes verification.
+  posthog.capture({
+    distinctId: email,
+    event: "otp_resent",
+    properties: { email },
+  });
 
   const params = new URLSearchParams({
     status: "success",
@@ -333,9 +417,25 @@ export async function resetPassword(
     };
   }
 
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
+  if (currentUser) {
+    posthog.capture({
+      distinctId: currentUser.id,
+      event: "password_reset_completed",
+      properties: { email: currentUser.email },
+    });
+  }
+
+  // Token exchange already established a session — redirect to dashboard directly
+  const { redirect } = await import("next/navigation");
+  redirect("/dashboard");
+
+  // redirect() throws internally; this return satisfies TypeScript's control flow analysis
   return {
     status: "success",
-    message: "Your password has been updated. You can now sign in.",
+    message: null,
     passwordStatus: "success",
     confirmPasswordStatus: "success",
     shouldResetPasswords: true,

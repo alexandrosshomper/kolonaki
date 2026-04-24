@@ -14,6 +14,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Logo } from "./logo";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { resendOtp, verifyOtp } from "@/app/login/actions";
 
@@ -31,10 +32,6 @@ export function OTPForm({
   ...props
 }: OTPFormProps) {
   const emailLabel = email || "your email";
-  const messageClasses =
-    messageStatus === "success"
-      ? "text-emerald-600 dark:text-emerald-500"
-      : "text-destructive";
 
   return (
     <div
@@ -54,7 +51,9 @@ export function OTPForm({
                     We sent a 6-digit code to {emailLabel}.
                   </p>
                   {message ? (
-                    <p className={cn("mt-2 text-sm", messageClasses)}>{message}</p>
+                    <Alert variant={messageStatus === "success" ? "success" : "destructive"} aria-live="polite">
+                      <AlertDescription>{message}</AlertDescription>
+                    </Alert>
                   ) : null}
                 </Field>
                 <Field>

@@ -1,8 +1,22 @@
 # TODOS
 
+## P2 — Activation State Infrastructure
+
+### user_activation table
+
+**What:** Postgres table in `public` schema replacing `user_metadata` as the store for activation state: `onboarding_steps`, `aha_reached_at`, `nudge_sent_at`, `segmentation`, `segmentation_completed_at`.
+**Why:** `user_metadata` is a JWT blob with ~1KB practical limit, grows unbounded as config evolves, and cannot support atomic conditional updates (required for a true aha race fix). Phase 2 admin funnel also needs SQL-queryable access to activation state.
+**Pros:** Atomic aha detection via SQL CAS, no JWT size limit, indexed SQL queries for cron and admin funnel, unblocks proper race condition fix.
+**Cons:** Requires migration + RLS policy + updating all read/write paths in `lib/kolonaki/actions.ts` and the cron. Adds a DB round-trip on every auth request.
+**Context:** Schema: `(user_id uuid PK references auth.users(id), onboarding_steps jsonb, aha_reached_at timestamptz, nudge_sent_at timestamptz, segmentation jsonb, segmentation_completed_at timestamptz)`. Replace `supabase.auth.updateUser({ data: meta })` with `supabase.from('user_activation').upsert(...)`. RLS: authenticated users can read/write their own row only.
+**Effort:** M (human: ~1d / CC: ~2h). **Priority:** P2. **Depends on:** Phase 1 shipped.
+
+---
+
 ## P2 — Post Phase 1A
 
 ### Email preview route
+
 **What:** Dev-only route at `/api/preview-email?template=welcome` (also `aha_moment_reached`, `nudge`) that renders React Email components in the browser.
 **Why:** Speeds up email template iteration without a real Resend account or live send.
 **Pros:** Essential DX for onboarding email customization. Zero production risk (NODE_ENV guard).
@@ -11,6 +25,7 @@
 **Effort:** S (human: ~3h / CC: ~10min). **Priority:** P2. **Depends on:** Phase 1A emails shipped.
 
 ### Cron query optimization (Postgres view)
+
 **What:** Postgres materialized view in `public` schema indexing `user_metadata` fields: `segmentation_completed_at`, `aha_reached_at`, `nudge_sent_at`. Replaces O(n) `listUsers()` pagination scan in the activation-nudge cron with an indexed SQL query.
 **Why:** `listUsers()` scans all users on every hourly cron run. Fine until ~10k users, bottleneck beyond that.
 **Pros:** SQL-native filtering, avoids loading all user data into memory, pagination becomes unnecessary.
@@ -19,6 +34,7 @@
 **Effort:** M (human: ~4h / CC: ~15min). **Priority:** P2. **Depends on:** Phase 1A shipped, user count approaching 5k.
 
 ### Aha celebration UI
+
 **What:** Confetti animation + sonner toast when `trackAhaEvent()` returns `{ aha: true }`.
 **Why:** The emotional peak of the onboarding flow. Makes the aha moment feel real and memorable.
 **Pros:** Zero backend work. `sonner` already installed. High emotional impact.
@@ -28,9 +44,23 @@
 
 ---
 
+## P3 — Performance
+
+### Middleware double getUser() deduplication
+
+**What:** Modify `utils/supabase/middleware.ts` to return `{ response, user }` from `updateSession()`. Update `proxy.js` to use the returned user instead of calling `getUser()` a second time.
+**Why:** Every protected page load (`/dashboard`, `/onboarding`) currently triggers two Supabase auth verifications — one inside `updateSession`, one in the explicit `getUser()` call in `proxy.js`. That is one wasted round-trip per page load.
+**Pros:** Halves the auth overhead on every protected route. Zero behavior change.
+**Cons:** Minor refactor to `updateSession` signature; callers outside `proxy.js` are unaffected (they don't call `getUser` themselves).
+**Context:** `proxy.js:15` calls `updateSession(request)`. `proxy.js:56,67` calls `supabase.auth.getUser()` again to check the user. Solution: `updateSession` already has the user after the internal `getUser()` call — thread it through the return value.
+**Effort:** S (human: ~30min / CC: ~5min). **Priority:** P3.
+
+---
+
 ## P3 — Auth & Infrastructure
 
 ### Clerk for auth
+
 **What:** Replace Supabase Auth with [Clerk](https://clerk.com) as the authentication provider.
 **Why:** Clerk provides a dramatically better out-of-the-box auth UX (prebuilt UI components, MFA, passkeys, social logins, org/team support) with less custom code to maintain than rolling auth on top of Supabase.
 **Pros:** Hosted, polished sign-in/sign-up flows. Built-in user management dashboard. First-class Next.js App Router integration via `@clerk/nextjs`. Webhook-based user lifecycle events replace manual Supabase auth hooks.
@@ -43,6 +73,7 @@
 ## P3 — Boilerplate & Developer Experience
 
 ### MCPs in boilerplate
+
 **What:** Add MCP server configurations to the boilerplate that match the tools already used in the project (e.g. Supabase, GitHub, Stripe, Postman, Notion, Slack, PostHog, Playwright).
 **Why:** New developers starting from the boilerplate should have the same agentic tooling context available immediately, without manual MCP setup.
 **Pros:** Zero friction onboarding for AI-assisted development. Keeps the boilerplate self-consistent.
@@ -51,6 +82,7 @@
 **Effort:** S (human: ~1h / CC: ~10min). **Priority:** P3.
 
 ### CLAUDE.md for boilerplate
+
 **What:** Write a `CLAUDE.md` at the root of the boilerplate that describes the project structure, key conventions, skills available, and how Claude Code should behave in this codebase.
 **Why:** Without a `CLAUDE.md`, every new session starts cold. A good `CLAUDE.md` means Claude Code can orient itself in under one round-trip.
 **Pros:** Dramatically improves AI-assisted development quality from day one. Acts as living documentation.
@@ -59,6 +91,7 @@
 **Effort:** S (human: ~1h / CC: ~15min). **Priority:** P3.
 
 ### Marketing site page markdowns (auto-updating)
+
 **What:** Maintain canonical Markdown files for the three main marketing pages — `docs/marketing/landing.md`, `docs/marketing/products.md`, `docs/marketing/pricing.md` — that are auto-regenerated or validated on each commit/deployment.
 **Why:** Keeps a source-of-truth representation of public-facing copy that AI agents, LLMs, and SEO tools can consume without parsing JSX. Also simplifies copy reviews.
 **Pros:** Enables LLM-assisted copy iteration. Easy diff review in PRs. Can seed AI context for future rewrites.
@@ -67,9 +100,24 @@
 **Effort:** M (human: ~4h / CC: ~30min). **Priority:** P3.
 
 ### SEO optimization
+
 **What:** Systematic SEO pass across all marketing pages: meta tags, Open Graph, structured data (JSON-LD), sitemap, `robots.txt`, canonical URLs, and Core Web Vitals review.
 **Why:** Organic discovery is the zero-cost acquisition channel. Missing basics (OG tags, sitemap) leave significant indexability on the table.
 **Pros:** Compound returns over time. Most items are one-time setup.
 **Cons:** Structured data and CWV tuning can be time-intensive; image optimization may require asset pipeline changes.
 **Context:** Use Next.js `metadata` API for per-page meta/OG. Add `app/sitemap.ts` and `app/robots.ts`. Add `Organization` + `SoftwareApplication` JSON-LD on landing page. Run Lighthouse CI in the deployment pipeline to gate on CWV regressions. Reference `docs/marketing/*.md` (above) for consistent keyword usage across pages.
 **Effort:** M (human: ~6h / CC: ~45min). **Priority:** P3. **Depends on:** Marketing site page markdowns.
+
+## Marketing website
+
+### Homepage complete with content and best practices
+
+### Features page
+
+### Features subpages
+
+### Pricing PAge
+
+### About us page
+
+### Legal pages

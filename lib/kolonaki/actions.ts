@@ -1,9 +1,11 @@
 "use server";
 
+import * as React from "react";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { posthog } from "@/lib/posthog/server";
 import { sendKolonakiEmail } from "@/lib/kolonaki/email";
+import { InviteEmail } from "@/lib/emails/InviteEmail";
 import config from "@/kolonaki.config";
 import type { UserActivationMeta } from "@/lib/kolonaki/types";
 
@@ -88,6 +90,17 @@ export async function trackAhaEvent(stepId: string): Promise<{ aha: boolean }> {
 
   let aha = false;
   if (allDone && !meta.aha_reached_at) {
+    // Soft race guard: re-fetch metadata right before firing to narrow the window
+    // where two concurrent completions both see aha_reached_at: undefined.
+    // Not a true CAS — a proper fix requires a user_activation table (see TODOS.md).
+    const {
+      data: { user: freshUser },
+    } = await supabase.auth.getUser();
+    if (freshUser?.user_metadata?.aha_reached_at) {
+      await supabase.auth.updateUser({ data: meta });
+      return { aha: false };
+    }
+
     meta.aha_reached_at = new Date().toISOString();
     aha = true;
 
@@ -138,16 +151,36 @@ export async function acceptInvitation(
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthenticated");
 
-  const { error: updateError } = await adminSupabase
+  // Email binding: the invitation is addressed to a specific email; reject cross-account accepts.
+  if (user.email?.toLowerCase() !== invitation.email?.toLowerCase()) {
+    throw new Error("Invitation email does not match the signed-in account");
+  }
+
+  // Atomic conditional update: only succeeds if accepted_at is still null.
+  // Prevents TOCTOU race where two concurrent requests both pass the check above
+  // and both execute the update, with the second silently overwriting accepted_by.
+  const { data: updated, error: updateError } = await adminSupabase
     .from("invitations")
     .update({ accepted_by: user.id, accepted_at: new Date().toISOString() })
-    .eq("id", invitation.id);
+    .eq("id", invitation.id)
+    .is("accepted_at", null)
+    .select("id");
 
   if (updateError) throw new Error("Failed to accept invitation");
+  if (!updated?.length) throw new Error("Invitation already accepted");
 
   const { data: inviter } = await adminSupabase.auth.admin.getUserById(
     invitation.inviter_id,
   );
+
+  posthog.capture({
+    distinctId: user.id,
+    event: "invitation_accepted",
+    properties: {
+      inviter_id: invitation.inviter_id,
+      inviter_email: inviter.user?.email,
+    },
+  });
 
   return { inviterEmail: inviter.user?.email ?? "" };
 }
@@ -166,16 +199,30 @@ export async function sendInvitation(email: string): Promise<void> {
   if (!user) throw new Error("Unauthenticated");
 
   const adminSupabase = createAdminClient();
+  // Upsert: if a pending invite to this email already exists (accepted_at IS NULL),
+  // refresh expires_at and return the existing token instead of creating a duplicate.
+  // Relies on the partial unique index: invitations_pending_unique (inviter_id, email)
+  // WHERE accepted_at IS NULL.
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: invitation, error } = await adminSupabase
     .from("invitations")
-    .insert({ inviter_id: user.id, email })
+    .upsert(
+      { inviter_id: user.id, email, expires_at: expiresAt },
+      { onConflict: "inviter_id,email", ignoreDuplicates: false },
+    )
     .select("token")
     .single();
 
   if (error || !invitation) throw new Error("Failed to create invitation");
 
+  posthog.capture({
+    distinctId: user.id,
+    event: "invitation_sent",
+    properties: { invitee_email: email },
+  });
+
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const inviteUrl = `${baseUrl}/invite/accept?token=${invitation.token}`;
+  const inviteUrl = `${baseUrl}/invite/accept?token=${encodeURIComponent(invitation.token)}`;
 
   const { resend } = await import("@/lib/resend/server");
   void resend.emails
@@ -183,7 +230,10 @@ export async function sendInvitation(email: string): Promise<void> {
       from: config.product.fromEmail,
       to: email,
       subject: `You've been invited to ${config.product.name}`,
-      html: `<p>You've been invited to join ${config.product.name}. <a href="${inviteUrl}">Accept your invitation</a></p>`,
+      react: React.createElement(InviteEmail, {
+        productName: config.product.name,
+        inviteUrl,
+      }),
     })
     .catch(console.error);
 }

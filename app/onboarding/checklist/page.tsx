@@ -22,7 +22,14 @@ export default async function ChecklistPage({ searchParams }: Props) {
   // Process invite acceptance before segmentation check so the token is
   // never silently dropped on the redirect to /onboarding/segmentation.
   if (accept_token) {
-    await acceptInvitation(accept_token).catch(console.error);
+    try {
+      await acceptInvitation(accept_token);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Invalid invitation";
+      redirect(
+        `/error?error=invalid_invitation&error_description=${encodeURIComponent(msg)}`,
+      );
+    }
   }
 
   if (!user.user_metadata?.segmentation) redirect("/onboarding/segmentation");

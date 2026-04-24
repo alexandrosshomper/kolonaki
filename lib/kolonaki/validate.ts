@@ -9,15 +9,20 @@ const SegmentationQuestionSchema = z.object({
     .min(1),
 });
 
-const ChecklistStepSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  description: z.union([z.string(), z.function()]),
-  completedOnSignup: z.boolean().optional(),
-  actionLabel: z.string().optional(),
-  actionHref: z.string().optional(),
-  optional: z.boolean().optional(),
-});
+const ChecklistStepSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    description: z.union([z.string(), z.function()]),
+    completedOnSignup: z.boolean().optional(),
+    actionLabel: z.string().optional(),
+    actionHref: z.string().optional(),
+    optional: z.boolean().optional(),
+  })
+  .refine((s) => !s.actionLabel || !!s.actionHref, {
+    message: "actionLabel requires actionHref",
+    path: ["actionHref"],
+  });
 
 const EmailSequenceSchema = z.object({
   trigger: z.enum(["signup", "aha_moment_reached", "checklist_stalled"]),

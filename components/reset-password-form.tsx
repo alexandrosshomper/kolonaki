@@ -25,6 +25,7 @@ import {
   resetPassword,
 } from "@/app/login/actions";
 import { Logo } from "./logo";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const initialState: ResetPasswordFormState = {
   status: "idle",
@@ -85,64 +86,32 @@ export function ResetPasswordForm({
     }
 
     const hashParams = new URLSearchParams(hash);
-    const keysToTransfer = [
-      "code",
-      "error",
-      "error_code",
-      "error_description",
-      "access_token",
-      "refresh_token",
-      "expires_in",
-      "token_type",
-      "type",
-    ];
 
-    const searchParams = new URLSearchParams(location.search);
-    let shouldNavigate = false;
-
-    for (const key of keysToTransfer) {
-      if (!hashParams.has(key)) {
-        continue;
-      }
-
-      if (key === "error" || key === "error_code") {
-        if (!searchParams.has("status")) {
-          searchParams.set("status", "error");
-          shouldNavigate = true;
-        }
-
-        if (!searchParams.has("reason")) {
-          searchParams.set("reason", hashParams.get("error_code") ?? hashParams.get("error") ?? "");
-          shouldNavigate = true;
-        }
-
-        if (
-          !searchParams.has("message") &&
-          hashParams.get("error_description")
-        ) {
-          searchParams.set("message", hashParams.get("error_description") ?? "");
-          shouldNavigate = true;
-        }
-
-        continue;
-      }
-
-      if (!searchParams.has(key)) {
-        searchParams.set(key, hashParams.get(key) ?? "");
-        shouldNavigate = true;
-      }
-    }
-
-    if (!shouldNavigate) {
+    // Error in the hash (e.g. expired link from Supabase implicit flow)
+    const hashError = hashParams.get("error_code") ?? hashParams.get("error");
+    if (hashError) {
+      const params = new URLSearchParams({ status: "error", reason: hashError });
+      const desc = hashParams.get("error_description");
+      if (desc) params.set("message", desc);
+      window.location.replace(`/reset-password?${params.toString()}`);
       return;
     }
 
-    const nextUrl =
-      searchParams.size > 0
-        ? `${location.pathname}?${searchParams.toString()}`
-        : location.pathname;
+    // Token-based (legacy implicit flow): hand off to the Route Handler so
+    // it can set session cookies — Server Components cannot write cookies.
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    if (accessToken && refreshToken) {
+      const params = new URLSearchParams({ access_token: accessToken, refresh_token: refreshToken });
+      window.location.replace(`/api/auth/reset-password-callback?${params.toString()}`);
+      return;
+    }
 
-    window.location.replace(nextUrl);
+    // PKCE code in hash (rare, but handle it)
+    const code = hashParams.get("code");
+    if (code) {
+      window.location.replace(`/api/auth/reset-password-callback?code=${encodeURIComponent(code)}`);
+    }
   }, []);
 
   useEffect(() => {
@@ -246,21 +215,12 @@ export function ResetPasswordForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={formAction} method="post" onSubmit={handleSubmit}>
+          <form action={formAction} method="POST" onSubmit={handleSubmit}>
             <FieldGroup>
               {activeNotice?.message ? (
-                <p
-                  aria-live="polite"
-                  role={activeNotice.status === "error" ? "alert" : "status"}
-                  className={cn(
-                    "text-sm",
-                    activeNotice.status === "error"
-                      ? "text-destructive"
-                      : "text-green-600"
-                  )}
-                >
-                  {activeNotice.message}
-                </p>
+                <Alert variant={activeNotice.status === "error" ? "destructive" : "success"} aria-live="polite">
+                  <AlertDescription>{activeNotice.message}</AlertDescription>
+                </Alert>
               ) : null}
               <Field>
                 <FieldLabel htmlFor="password">Password</FieldLabel>

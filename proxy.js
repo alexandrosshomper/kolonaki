@@ -7,6 +7,9 @@ import { getSupabaseCredentials } from "@/utils/supabase/config";
 // by setting an invite cookie and redirecting to /signup. Middleware must let it through.
 const PROTECTED_PREFIXES = ["/dashboard", "/onboarding"];
 
+// Authenticated users visiting these paths are bounced to /dashboard
+const AUTH_ONLY_PATHS = ["/login", "/signup", "/forgot-password"];
+
 export async function proxy(request) {
   // Always refresh the auth session first (updates session cookies)
   const response = await updateSession(request);
@@ -15,6 +18,35 @@ export async function proxy(request) {
   const isProtected = PROTECTED_PREFIXES.some((prefix) =>
     pathname === prefix || pathname.startsWith(prefix + "/")
   );
+
+  // Bounce authenticated users away from auth-only pages
+  const isAuthOnly = AUTH_ONLY_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(path + "/")
+  );
+
+  if (isAuthOnly) {
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseCredentials();
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {},
+      },
+    });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      return NextResponse.redirect(dashboardUrl);
+    }
+
+    return response;
+  }
 
   if (!isProtected) return response;
 
@@ -52,8 +84,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - ingest (PostHog proxy — handled by next.config.ts rewrites, must bypass proxy)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|ingest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -1,31 +1,29 @@
-const SUPABASE_URL_ENV_KEYS = [
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_PROJECT_URL",
-  "SUPABASE_PROJECT_URL",
-];
-
-const SUPABASE_ANON_KEY_ENV_KEYS = [
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-  "SUPABASE_ANON_KEY",
-];
-
 export function getSupabaseCredentials() {
-  const supabaseAnonKey = readFirstPresentEnv(SUPABASE_ANON_KEY_ENV_KEYS);
+  // IMPORTANT: Use explicit process.env.NEXT_PUBLIC_* references here, NOT dynamic
+  // key access (process.env[key]). Turbopack and webpack only inline NEXT_PUBLIC_*
+  // vars into client bundles when they appear as static member expressions.
+  // Dynamic lookup (process.env["KEY"] via a variable) returns undefined in the browser.
+  const supabaseAnonKey =
+    normalizeEmptyString(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) ??
+    normalizeEmptyString(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ??
+    normalizeEmptyString(process.env.SUPABASE_ANON_KEY);
 
   if (!supabaseAnonKey) {
     throw new Error(
-      "Missing Supabase anon key. Set NEXT_PUBLIC_SUPABASE_ANON_KEY."
+      "Missing Supabase publishable key. Set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env.local (Supabase dashboard → Project Settings → API Keys)."
     );
   }
 
-  const explicitSupabaseUrl = readFirstPresentEnv(SUPABASE_URL_ENV_KEYS);
-  const derivedSupabaseUrl = deriveSupabaseUrlFromAnonKey(supabaseAnonKey);
-  const supabaseUrl = explicitSupabaseUrl ?? derivedSupabaseUrl;
+  const supabaseUrl =
+    normalizeEmptyString(process.env.NEXT_PUBLIC_SUPABASE_URL) ??
+    normalizeEmptyString(process.env.SUPABASE_URL) ??
+    normalizeEmptyString(process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL) ??
+    normalizeEmptyString(process.env.SUPABASE_PROJECT_URL) ??
+    deriveSupabaseUrlFromKey(supabaseAnonKey);
 
   if (!supabaseUrl) {
     throw new Error(
-      "Unable to determine Supabase URL. Set NEXT_PUBLIC_SUPABASE_URL or supply an anon key that includes an issuer."
+      "Unable to determine Supabase URL. Set NEXT_PUBLIC_SUPABASE_URL in your .env.local."
     );
   }
 
@@ -35,59 +33,36 @@ export function getSupabaseCredentials() {
   };
 }
 
-function readFirstPresentEnv(keys) {
-  for (const key of keys) {
-    const value = normalizeEmptyString(process.env[key]);
-    if (value) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function deriveSupabaseUrlFromAnonKey(anonKey) {
+function deriveSupabaseUrlFromKey(key) {
+  // Legacy: old anon keys were JWTs with an `iss` or `project_id` claim.
+  // New publishable keys (sb_publishable_...) are not JWTs — this returns undefined for them.
+  // Always set NEXT_PUBLIC_SUPABASE_URL explicitly.
   try {
-    const [, payloadPart] = (anonKey ?? "").split(".");
+    const [, payloadPart] = (key ?? "").split(".");
+    if (!payloadPart) return undefined;
 
-    if (!payloadPart) {
-      return undefined;
-    }
+    const payload = parseBase64UrlJson(payloadPart);
+    const issuer = typeof payload?.iss === "string" ? payload.iss : null;
 
-    const payloadJson = parseBase64UrlJson(payloadPart);
-    const issuer = typeof payloadJson?.iss === "string" ? payloadJson.iss : null;
-
-    if (issuer) {
+    if (issuer && (issuer.startsWith("http://") || issuer.startsWith("https://"))) {
       try {
-        const issuerUrl = new URL(issuer);
-        issuerUrl.pathname = "/";
-        issuerUrl.search = "";
-        issuerUrl.hash = "";
-        return issuerUrl.origin;
-      } catch (error) {
-        console.warn(
-          "Unable to parse Supabase issuer from anon key; falling back to project id.",
-          error
-        );
+        const url = new URL(issuer);
+        url.pathname = "/";
+        url.search = "";
+        url.hash = "";
+        return url.origin;
+      } catch {
+        // fall through to project_id
       }
     }
 
     const projectId =
-      typeof payloadJson?.project_id === "string"
-        ? payloadJson.project_id
-        : typeof payloadJson?.projectId === "string"
-          ? payloadJson.projectId
-          : undefined;
+      typeof payload?.project_id === "string" ? payload.project_id :
+      typeof payload?.projectId === "string" ? payload.projectId :
+      undefined;
 
-    if (!projectId) {
-      return undefined;
-    }
-
-    return `https://${projectId}.supabase.co`;
-  } catch (error) {
-    console.warn(
-      "Unable to derive Supabase URL from anon key payload.",
-      error
-    );
+    return projectId ? `https://${projectId}.supabase.co` : undefined;
+  } catch {
     return undefined;
   }
 }
@@ -99,24 +74,18 @@ function parseBase64UrlJson(value) {
     "="
   );
 
-  let decoded;
-
-  if (typeof atob === "function") {
-    decoded = atob(padded);
-  } else if (typeof Buffer !== "undefined") {
-    decoded = Buffer.from(padded, "base64").toString("utf-8");
-  } else {
-    throw new Error("No base64 decoder available in this environment.");
-  }
+  const decoded =
+    typeof atob === "function"
+      ? atob(padded)
+      : typeof Buffer !== "undefined"
+        ? Buffer.from(padded, "base64").toString("utf-8")
+        : (() => { throw new Error("No base64 decoder available."); })();
 
   return JSON.parse(decoded);
 }
 
 function normalizeEmptyString(value) {
-  if (!value) {
-    return undefined;
-  }
-
+  if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }

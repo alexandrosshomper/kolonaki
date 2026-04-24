@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // vi.hoisted() runs before vi.mock() factories — required for variables used in factories
-const { mockGetUser, mockUpdateUser, mockAdminGetInvitation } = vi.hoisted(() => {
-  return {
-    mockGetUser: vi.fn(),
-    mockUpdateUser: vi.fn().mockResolvedValue({ data: {}, error: null }),
-    mockAdminGetInvitation: vi.fn(),
-  };
-});
+const {
+  mockGetUser,
+  mockUpdateUser,
+  mockAdminFrom,
+  mockAdminGetUserById,
+  mockResendSend,
+} = vi.hoisted(() => ({
+  mockGetUser: vi.fn(),
+  mockUpdateUser: vi.fn().mockResolvedValue({ data: {}, error: null }),
+  mockAdminFrom: vi.fn(),
+  mockAdminGetUserById: vi.fn(),
+  mockResendSend: vi.fn().mockResolvedValue({ data: {}, error: null }),
+}));
 
 vi.mock("@/utils/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -20,20 +26,10 @@ vi.mock("@/utils/supabase/server", () => ({
 
 vi.mock("@/utils/supabase/admin", () => ({
   createAdminClient: vi.fn().mockReturnValue({
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: mockAdminGetInvitation,
-        }),
-      }),
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
-      insert: vi.fn().mockResolvedValue({ error: null }),
-    }),
+    from: mockAdminFrom,
     auth: {
       admin: {
-        updateUserById: vi.fn().mockResolvedValue({ error: null }),
+        getUserById: mockAdminGetUserById,
       },
     },
   }),
@@ -50,7 +46,20 @@ vi.mock("@/lib/kolonaki/email", () => ({
   sendKolonakiEmail: vi.fn(),
 }));
 
-import { completeSegmentation, trackAhaEvent } from "../actions";
+vi.mock("@/lib/resend/server", () => ({
+  resend: {
+    emails: {
+      send: mockResendSend,
+    },
+  },
+}));
+
+import {
+  completeSegmentation,
+  trackAhaEvent,
+  acceptInvitation,
+  sendInvitation,
+} from "../actions";
 import { posthog } from "@/lib/posthog/server";
 import { sendKolonakiEmail } from "../email";
 
@@ -107,6 +116,25 @@ describe("completeSegmentation", () => {
     const call = mockUpdateUser.mock.calls[0][0];
     expect(call.data.onboarding_steps.create_account).toBe(true);
   });
+
+  it("does not overwrite aha_reached_at on re-entry (shallow merge safety)", async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          ...mockUser,
+          user_metadata: {
+            onboarding_steps: { create_account: true },
+            aha_reached_at: "2026-01-01T00:00:00.000Z",
+          },
+        },
+      },
+    });
+    await completeSegmentation({ role: "dev" });
+    const call = mockUpdateUser.mock.calls[0][0];
+    // completeSegmentation must NOT include aha_reached_at in the write — shallow merge
+    // would overwrite the existing value if it were included with undefined.
+    expect(call.data).not.toHaveProperty("aha_reached_at");
+  });
 });
 
 describe("trackAhaEvent", () => {
@@ -155,5 +183,177 @@ describe("trackAhaEvent", () => {
     await trackAhaEvent("complete_setup");
     expect(sendKolonakiEmail).not.toHaveBeenCalled();
     expect(posthog.capture).not.toHaveBeenCalled();
+  });
+
+  it("returns { aha: true } and fires email + PostHog when last required step completes", async () => {
+    const user = {
+      ...mockUser,
+      user_metadata: {
+        segmentation: { role: "dev" },
+        // create_account is completedOnSignup — not a required step
+        onboarding_steps: { create_account: true },
+        // no aha_reached_at
+      },
+    };
+    // Called twice: initial getUser + soft race re-check
+    mockGetUser.mockResolvedValue({ data: { user } });
+
+    const result = await trackAhaEvent("complete_setup");
+
+    expect(result).toEqual({ aha: true });
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "aha_moment_reached" }),
+    );
+    expect(sendKolonakiEmail).toHaveBeenCalledWith(
+      "aha_moment_reached",
+      "test@example.com",
+    );
+  });
+});
+
+describe("acceptInvitation", () => {
+  const futureExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns inviterEmail for a valid invitation", async () => {
+    const invitation = {
+      id: "inv-1",
+      inviter_id: "inviter-123",
+      email: "test@example.com",
+      accepted_at: null,
+      expires_at: futureExpiry,
+    };
+
+    mockAdminFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: invitation, error: null }),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          is: vi.fn().mockReturnValue({
+            select: vi
+              .fn()
+              .mockResolvedValue({ data: [{ id: "inv-1" }], error: null }),
+          }),
+        }),
+      }),
+    });
+    mockAdminGetUserById.mockResolvedValue({
+      data: { user: { email: "inviter@example.com" } },
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+    });
+
+    const result = await acceptInvitation("valid-token");
+    expect(result).toEqual({ inviterEmail: "inviter@example.com" });
+  });
+
+  it("throws for an expired invitation", async () => {
+    const invitation = {
+      id: "inv-2",
+      inviter_id: "inviter-123",
+      email: "test@example.com",
+      accepted_at: null,
+      expires_at: new Date(Date.now() - 1000).toISOString(),
+    };
+
+    mockAdminFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: invitation, error: null }),
+        }),
+      }),
+    });
+
+    await expect(acceptInvitation("expired-token")).rejects.toThrow(
+      "Invitation expired",
+    );
+  });
+
+  it("throws if invitation is already accepted", async () => {
+    const invitation = {
+      id: "inv-3",
+      inviter_id: "inviter-123",
+      email: "test@example.com",
+      accepted_at: "2026-01-01T00:00:00.000Z",
+      expires_at: futureExpiry,
+    };
+
+    mockAdminFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: invitation, error: null }),
+        }),
+      }),
+    });
+
+    await expect(acceptInvitation("used-token")).rejects.toThrow(
+      "Invitation already accepted",
+    );
+  });
+
+  it("throws if user email does not match the invitation", async () => {
+    const invitation = {
+      id: "inv-4",
+      inviter_id: "inviter-123",
+      email: "other@example.com",
+      accepted_at: null,
+      expires_at: futureExpiry,
+    };
+
+    mockAdminFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: invitation, error: null }),
+        }),
+      }),
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+    });
+
+    await expect(acceptInvitation("wrong-email-token")).rejects.toThrow(
+      "Invitation email does not match the signed-in account",
+    );
+  });
+});
+
+describe("sendInvitation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates an invitation and sends the invite email", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-123", email: "sender@example.com" } },
+    });
+    mockAdminFrom.mockReturnValue({
+      upsert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi
+            .fn()
+            .mockResolvedValue({ data: { token: "test-token-xyz" }, error: null }),
+        }),
+      }),
+    });
+
+    await sendInvitation("invitee@example.com");
+
+    expect(mockResendSend).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "invitee@example.com" }),
+    );
+  });
+
+  it("throws if unauthenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    await expect(sendInvitation("invitee@example.com")).rejects.toThrow(
+      "Unauthenticated",
+    );
   });
 });

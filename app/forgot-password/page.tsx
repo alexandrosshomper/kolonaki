@@ -1,13 +1,12 @@
 import { ForgotPasswordForm } from "@/components/forgot-password-form";
 
-export const dynamic = "force-dynamic";
-
 type ForgotPasswordPageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default function Page({ searchParams }: ForgotPasswordPageProps) {
-  const emailParam = searchParams?.email;
+export default async function Page({ searchParams }: ForgotPasswordPageProps) {
+  const resolvedParams = await searchParams;
+  const emailParam = resolvedParams?.email;
   const email =
     typeof emailParam === "string"
       ? emailParam
