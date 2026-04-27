@@ -1,11 +1,14 @@
 import { Logo } from "@/components/logo";
 import { Card, CardContent } from "@/components/ui/card";
+import { FieldDescription } from "@/components/ui/field";
 
 type CheckEmailPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function CheckEmailPage({ searchParams }: CheckEmailPageProps) {
+export default async function CheckEmailPage({
+  searchParams,
+}: CheckEmailPageProps) {
   const resolvedParams = await searchParams;
 
   const rawMessage = resolvedParams?.message;
@@ -38,24 +41,25 @@ export default async function CheckEmailPage({ searchParams }: CheckEmailPagePro
                 <p className="text-sm text-muted-foreground">{message}</p>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  We sent you a confirmation link. Click it to verify your
-                  account and get started.
+                  We sent you a confirmation link to <br />
+                  {email ? (
+                    <strong className="text-foreground">{email}</strong>
+                  ) : (
+                    "your email"
+                  )}
+                  . <br />
+                  Click it to verify your account and get started.
                 </p>
               )}
-              <p className="text-muted-foreground text-xs">
-                Didn&apos;t receive it? Check your spam folder, or{" "}
+              <br />
+              <FieldDescription className="text-center">
+                Didn&apos;t receive it? Check your spam, or{" "}
                 <a href="/signup" className="underline underline-offset-4">
                   try again
                 </a>
-                .
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Received a 6-digit code instead?{" "}
-                <a href={otpHref} className="underline underline-offset-4">
-                  Enter it here
-                </a>
-                .
-              </p>
+                . <br />
+                Already have an account? <a href="/login">Sign in</a>
+              </FieldDescription>
             </CardContent>
           </Card>
         </div>

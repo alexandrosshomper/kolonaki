@@ -121,3 +121,19 @@
 ### About us page
 
 ### Legal pages
+
+---
+
+## QA Deferred — 2026-04-24
+
+### Hydration mismatch on input forms (ISSUE-002)
+
+**What:** Add `suppressHydrationWarning` to password inputs if this mismatch surfaces in production error monitoring.
+**Why:** Chromium's built-in password manager injects `caret-color: transparent` into inputs between server render and React hydration. Currently only observable in the gstack headless browser, not in real user sessions.
+**Priority:** P3 / only act if confirmed in Sentry/PostHog.
+
+### proxy.js → proxy.ts migration
+
+**What:** Rename `proxy.js` to `proxy.ts` and add Node.js runtime types.
+**Why:** Next.js 16 recommends TypeScript for the middleware/proxy file. Non-breaking, cosmetic improvement.
+**Priority:** P3.

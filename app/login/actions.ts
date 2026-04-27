@@ -201,7 +201,7 @@ export async function signup(
   }
 
   const { redirect } = await import("next/navigation");
-  redirect("/check-email");
+  redirect(`/check-email?email=${encodeURIComponent(emailValue)}`);
 
   return {
     status: "success",
