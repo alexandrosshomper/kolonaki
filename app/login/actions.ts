@@ -37,6 +37,7 @@ async function revalidateRootLayout() {
 
 const VERIFY_OTP_ERROR_PREFIX = "Supabase verify OTP error:";
 const RESEND_OTP_ERROR_PREFIX = "Supabase resend OTP error:";
+const RESEND_SIGNUP_ERROR_PREFIX = "Supabase resend signup error:";
 
 export async function login(
   prevState: LoginFormState,
@@ -354,6 +355,61 @@ export async function resendOtp(formData: FormData) {
   });
 
   redirect(`/otp?${params.toString()}`);
+}
+
+export async function resendSignupConfirmation(formData: FormData) {
+  const supabase = await createClient();
+
+  const rawEmail = formData.get("email");
+  const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
+
+  const { redirect } = await import("next/navigation");
+
+  if (!email) {
+    const params = new URLSearchParams({
+      status: "error",
+      message: "Missing email address. Please sign up again.",
+    });
+
+    redirect(`/check-email?${params.toString()}`);
+  }
+
+  const { error } = await supabase.auth.resend({
+    email,
+    type: "signup",
+    options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+    },
+  });
+
+  if (error) {
+    console.error(RESEND_SIGNUP_ERROR_PREFIX, error);
+
+    const params = new URLSearchParams({
+      status: "error",
+      message: error.message ?? "Unable to resend the confirmation email.",
+      email,
+    });
+
+    redirect(`/check-email?${params.toString()}`);
+  }
+
+  // User is unauthenticated at this point, so user.id is unavailable. Use email
+  // as distinctId — PostHog will merge once verification completes (matches
+  // the resendOtp pattern above).
+  posthog.capture({
+    distinctId: email,
+    event: "signup_email_resent",
+    properties: { email },
+  });
+
+  const params = new URLSearchParams({
+    status: "success",
+    message: "Confirmation email sent. Check your inbox.",
+    email,
+  });
+
+  redirect(`/check-email?${params.toString()}`);
 }
 
 export async function resetPassword(
