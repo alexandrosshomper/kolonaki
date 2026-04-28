@@ -47,12 +47,18 @@ export function SniperLinkButton({ email, from }: Props) {
     <Button
       asChild
       className="w-full"
-      onClick={() =>
-        posthog.capture("sniper_link_clicked", {
-          provider: link.providerKey,
-          recipient_domain: email.split("@").pop()?.toLowerCase(),
-        })
-      }
+      onClick={() => {
+        // send_instantly bypasses posthog-js batching so the request goes out
+        // before the new-tab open can interrupt the queue.
+        posthog.capture(
+          "sniper_link_clicked",
+          {
+            provider: link.providerKey,
+            recipient_domain: email.split("@").pop()?.toLowerCase(),
+          },
+          { send_instantly: true },
+        );
+      }}
     >
       <a href={link.url} target="_blank" rel="noopener noreferrer">
         Open {link.providerName}
