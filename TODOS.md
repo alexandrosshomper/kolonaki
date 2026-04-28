@@ -1,5 +1,18 @@
 # TODOS
 
+## P1 — Sniper Link Activation (post-v0.3.0)
+
+### Real fromEmail in kolonaki.config.ts
+
+**What:** Replace placeholder `onboarding@yourproduct.com` in `kolonaki.config.ts:6` with the project's actual Resend verified sender address.
+**Why:** The sniper link's Gmail/Yahoo/Proton/AOL search queries filter by this sender. Until it's set to a real sending address, the search will return zero results in users' inboxes and the sniper link is theatre, not function.
+**Pros:** Activates the entire feature for real users. One-line change.
+**Cons:** Requires a Resend account with a verified sender domain.
+**Context:** Search query format: `from:(onboarding@yourproduct.com)+in:anywhere+newer_than:1h`. Only matches if Resend sends from this exact address. Verify match between `lib/kolonaki/email.ts` `from` field and the URL filter.
+**Effort:** XS (human: ~5min / CC: ~2min). **Priority:** P1. **Source:** v0.3.0 / PR #41 ship.
+
+---
+
 ## P2 — Activation State Infrastructure
 
 ### user_activation table
@@ -124,16 +137,10 @@
 
 ---
 
-## P3 — Sniper Link Follow-ups (from /qa 2026-04-28)
+## P3 — Sniper Link Follow-ups (post-v0.3.0 / PR #41)
 
-### Real fromEmail in kolonaki.config.ts
-
-**What:** Replace placeholder `onboarding@yourproduct.com` in `kolonaki.config.ts:6` with the project's actual Resend verified sender address.
-**Why:** The sniper link's Gmail/Yahoo/Proton/AOL search queries filter by this sender. Until it's set to a real sending address, the search will return zero results in users' inboxes and the sniper link is theatre, not function.
-**Pros:** Activates the entire feature for real users. One-line change.
-**Cons:** Requires a Resend account with a verified sender domain.
-**Context:** Search query format: `from:(onboarding@yourproduct.com)+in:anywhere+newer_than:1h`. Only matches if Resend sends from this exact address. Verify match between `lib/kolonaki/email.ts` `from` field and the URL filter.
-**Effort:** S (human: ~5min / CC: ~2min). **Priority:** P1 (blocks feature being useful in prod).
+> Source: /qa 2026-04-28. The P1 (`Real fromEmail`) was promoted to its own
+> section at the top of this file.
 
 ### Mobile native deep links for sniper button
 
@@ -164,7 +171,9 @@
 
 ---
 
-## P3 — Resend Hardening Follow-ups (from /qa 2026-04-28)
+## P3 — Resend Hardening Follow-ups (post-v0.3.0 / PR #41)
+
+> Source: /qa 2026-04-28 + pre-landing review at commit b12233c.
 
 ### Real-Supabase smoke test for resendSignupConfirmation
 
