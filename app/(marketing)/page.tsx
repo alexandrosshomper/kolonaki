@@ -2,7 +2,7 @@ import HeroSection from "@/components/hero-section";
 import { redirect } from "next/navigation";
 
 type HomePageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function extractParam(
@@ -15,9 +15,10 @@ function extractParam(
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default function Home({ searchParams }: HomePageProps) {
-  const errorCode = extractParam(searchParams?.error_code);
-  const error = extractParam(searchParams?.error);
+export default async function Home({ searchParams }: HomePageProps) {
+  const resolvedParams = await searchParams;
+  const errorCode = extractParam(resolvedParams?.error_code);
+  const error = extractParam(resolvedParams?.error);
 
   if (errorCode === "otp_expired" || error === "access_denied") {
     const params = new URLSearchParams({

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { getSupabaseCredentials } from "./config";
 
 export async function createClient() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const { supabaseUrl, supabaseAnonKey } = getSupabaseCredentials();
 
   // Create a server's supabase client with newly configured cookie,

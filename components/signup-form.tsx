@@ -5,6 +5,7 @@ import { useActionState, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { signup } from "../app/login/actions";
 import type { FieldStatus, SignupFormState } from "../app/login/actions";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -20,6 +21,7 @@ const initialState: SignupFormState = {
   status: "idle",
   message: null,
   email: "",
+  emailStatus: "idle",
   passwordStatus: "idle",
   confirmPasswordStatus: "idle",
   shouldResetPasswords: false,
@@ -48,9 +50,12 @@ export function SignupForm({
     }
   }, [state.shouldResetPasswords, state.status]);
 
+  const emailStatus = state.emailStatus ?? "idle";
   const passwordStatus = state.passwordStatus ?? "idle";
   const confirmPasswordStatus = state.confirmPasswordStatus ?? "idle";
 
+  const emailFormatValid =
+    email.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordRequirementsMet = password.length >= 8;
   const confirmPasswordRequirementsMet =
     passwordRequirementsMet &&
@@ -62,11 +67,22 @@ export function SignupForm({
   const errorInputClasses =
     "border-destructive focus-visible:border-destructive";
 
+  const activeEmailStatus: FieldStatus =
+    email.length === 0
+      ? "idle"
+      : email === state.email && emailStatus === "error"
+      ? "error"
+      : emailFormatValid
+      ? "success"
+      : "idle";
+
   const activePasswordStatus: FieldStatus =
     password.length > 0
       ? passwordRequirementsMet
         ? "success"
         : "idle"
+      : state.status === "error"
+      ? "error"
       : passwordStatus;
 
   const activeConfirmPasswordStatus: FieldStatus =
@@ -104,13 +120,9 @@ export function SignupForm({
                 </p>
               </div>
               {state.status === "error" && state.message ? (
-                <p
-                  aria-live="polite"
-                  role="alert"
-                  className="text-destructive text-sm"
-                >
-                  {state.message}
-                </p>
+                <Alert variant="destructive" aria-live="polite">
+                  <AlertDescription>{state.message}</AlertDescription>
+                </Alert>
               ) : null}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -122,6 +134,14 @@ export function SignupForm({
                   placeholder="m@example.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  aria-invalid={activeEmailStatus === "error" || undefined}
+                  className={
+                    activeEmailStatus === "error"
+                      ? errorInputClasses
+                      : activeEmailStatus === "success"
+                      ? successInputClasses
+                      : undefined
+                  }
                 />
                 <FieldDescription>
                   We&apos;ll use this to contact you. We will not share your

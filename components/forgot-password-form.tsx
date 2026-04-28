@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { Logo } from "./logo";
 import { createClient } from "@/utils/supabase/client";
+import posthog from "posthog-js";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type FieldStatus = "idle" | "error" | "success";
 
@@ -109,8 +111,10 @@ export function ForgotPasswordForm({
 
     try {
       const supabase = createClient();
-      const redirectTo = new URL("/reset-password", window.location.origin)
-        .toString();
+      const redirectTo = new URL(
+        "/api/auth/reset-password-callback",
+        window.location.origin
+      ).toString();
 
       const { error } = await supabase.auth.resetPasswordForEmail(
         trimmedEmail,
@@ -125,6 +129,8 @@ export function ForgotPasswordForm({
         });
         return;
       }
+
+      posthog.capture("password_reset_requested", { email: trimmedEmail });
 
       setState({
         status: "success",
@@ -161,18 +167,9 @@ export function ForgotPasswordForm({
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               {state.message ? (
-                <p
-                  aria-live="polite"
-                  role={state.status === "error" ? "alert" : "status"}
-                  className={cn(
-                    "text-sm",
-                    state.status === "error"
-                      ? "text-destructive"
-                      : "text-green-600"
-                  )}
-                >
-                  {state.message}
-                </p>
+                <Alert variant={state.status === "error" ? "destructive" : "success"} aria-live="polite">
+                  <AlertDescription>{state.message}</AlertDescription>
+                </Alert>
               ) : null}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>

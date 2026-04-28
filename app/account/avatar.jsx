@@ -2,11 +2,13 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Avatar({ uid, url, size, onUpload }) {
   const supabase = createClient();
   const [avatarUrl, setAvatarUrl] = useState(url);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   useEffect(() => {
     async function downloadImage(path) {
@@ -31,6 +33,7 @@ export default function Avatar({ uid, url, size, onUpload }) {
   const uploadAvatar = async (event) => {
     try {
       setUploading(true);
+      setUploadError(null);
 
       if (!event.target.files || event.target.files.length === 0) {
         throw new Error("You must select an image to upload.");
@@ -50,7 +53,7 @@ export default function Avatar({ uid, url, size, onUpload }) {
 
       onUpload(filePath);
     } catch (error) {
-      alert("Error uploading avatar!");
+      setUploadError("Error uploading avatar. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -58,6 +61,11 @@ export default function Avatar({ uid, url, size, onUpload }) {
 
   return (
     <div>
+      {uploadError && (
+        <Alert variant="destructive" className="mb-2">
+          <AlertDescription>{uploadError}</AlertDescription>
+        </Alert>
+      )}
       {avatarUrl ? (
         <Image
           width={size}
