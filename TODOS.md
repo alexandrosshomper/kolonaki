@@ -124,6 +124,46 @@
 
 ---
 
+## P3 — Sniper Link Follow-ups (from /qa 2026-04-28)
+
+### Real fromEmail in kolonaki.config.ts
+
+**What:** Replace placeholder `onboarding@yourproduct.com` in `kolonaki.config.ts:6` with the project's actual Resend verified sender address.
+**Why:** The sniper link's Gmail/Yahoo/Proton/AOL search queries filter by this sender. Until it's set to a real sending address, the search will return zero results in users' inboxes and the sniper link is theatre, not function.
+**Pros:** Activates the entire feature for real users. One-line change.
+**Cons:** Requires a Resend account with a verified sender domain.
+**Context:** Search query format: `from:(onboarding@yourproduct.com)+in:anywhere+newer_than:1h`. Only matches if Resend sends from this exact address. Verify match between `lib/kolonaki/email.ts` `from` field and the URL filter.
+**Effort:** S (human: ~5min / CC: ~2min). **Priority:** P1 (blocks feature being useful in prod).
+
+### Mobile native deep links for sniper button
+
+**What:** Detect `iPhone`/`Android` user agent in `app/check-email/sniper-link-button.tsx` and switch to native app URLs (`googlegmail://`, `ms-outlook://`, `protonmail://`, etc.) when present.
+**Why:** Mobile users currently get the web inbox in their phone's browser. Native deep links open the actual mail app, which is the more polished UX.
+**Pros:** Matches buttondown/sniper-link parity. Smoother mobile UX. Adds ~30 lines.
+**Cons:** Requires UA parsing. Native URLs can fail silently if the app isn't installed (no graceful fallback in v1 buttondown either).
+**Context:** Reference `lib/sniper-link/providers.ts` — buttondown's full provider definitions include `getIosLink` and `getAndroidLink` (Android intent URLs with HTTPS fallback). Easiest path: extend `Provider` type with these methods, port the implementations from buttondown, add UA detection in the client component.
+**Effort:** S (human: ~2h / CC: ~15min). **Priority:** P3.
+
+### Memoize sniper link MX lookup
+
+**What:** Wrap `getSniperLink()` call in `app/check-email/sniper-link-button.tsx` with `useMemo` (or move detection to a `useEffect` that only re-runs on `email` change — currently is, but the result isn't cached across mounts).
+**Why:** If a user navigates back to /check-email multiple times with the same email cookie, the MX request fires each time. Cloudflare DoH is 8ms so it's not painful, but it's wasted network.
+**Pros:** Eliminates repeat DNS queries for unchanged email. Low effort.
+**Cons:** Negligible — MX lookups are 8ms.
+**Context:** Add a module-level `Map<string, SniperLink | null>` cache keyed on `${recipient}|${sender}` in `lib/sniper-link/index.ts`. Or use SWR/React Query if you want per-tab cache. Cheapest: in-memory module Map.
+**Effort:** XS (human: ~15min / CC: ~5min). **Priority:** P4 (polish).
+
+### PostHog funnel for sniper link activation lift
+
+**What:** Build a PostHog funnel: `signup_form_submitted` → `sniper_link_clicked` → `email_confirmed`. Compare to control: signups that did NOT click sniper link.
+**Why:** Measures whether the sniper link actually improves email confirmation rates (the entire point of the feature). Without this metric, you don't know if it's worth the maintenance.
+**Pros:** Quantifies the activation lift. Justifies (or kills) the feature based on data.
+**Cons:** Needs ~100+ signups before the funnel is statistically meaningful.
+**Context:** Event already wired (`sniper_link_clicked` with `provider` + `recipient_domain`). Just needs a PostHog insight/funnel built. Use the `/posthog-insights` skill or build directly in PostHog dashboard.
+**Effort:** XS (human: ~30min / CC: N/A — manual in PostHog UI). **Priority:** P3.
+
+---
+
 ## QA Deferred — 2026-04-24
 
 ### Hydration mismatch on input forms (ISSUE-002)
