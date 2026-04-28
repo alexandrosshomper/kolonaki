@@ -86,12 +86,11 @@ export default async function CheckEmailPage({
               ) : null}
 
               <FieldDescription className="text-center">
-                Didn&apos;t receive it? Check your spam
                 {email ? (
-                  ", or use Resend above."
+                  "Don't see it? Check your spam folder, or tap Resend."
                 ) : (
                   <>
-                    , or{" "}
+                    Didn&apos;t receive it? Check your spam, or{" "}
                     <a href="/signup" className="underline underline-offset-4">
                       sign up again
                     </a>
