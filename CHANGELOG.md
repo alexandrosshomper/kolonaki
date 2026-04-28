@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.3.0] — 2026-04-28
+
+### Added — Sniper Link on /check-email
+
+- "Open Gmail / Outlook / Proton / etc." primary CTA on the check-email page that takes users straight to their inbox with a pre-filtered search for the confirmation email
+- `lib/sniper-link/providers.ts` — 8 provider definitions (Gmail, Outlook, Yahoo, Proton, iCloud, HEY, AOL, Mail.ru) with desktop deep-search URLs. Logic ported from buttondown/sniper-link (MIT)
+- `lib/sniper-link/index.ts` — `getSniperLink(recipient, sender)` public API
+- MX record lookup via Cloudflare DNS-over-HTTPS for custom-domain email (Workspace, M365). Recognizes when `you@yourcompany.com` actually uses Gmail/Outlook under the hood and shows the right button
+- Ambiguity-aware MX matching — returns no provider when MX records split between multiple providers, instead of guessing wrong
+- Gmail uses the `?authuser=email` resolver pattern (correct for multi-account / Workspace users) instead of the broken `/u/{email}/` pattern
+- `app/check-email/sniper-link-button.tsx` — client component with skeleton-while-loading state and graceful no-provider fallback
+- PostHog `sniper_link_clicked` event capture with `provider` + `recipient_domain` properties (sent with `send_instantly: true` to survive new-tab navigation)
+- 20 vitest unit tests covering domain extraction, hardcoded provider matching, MX parsing, ambiguity rejection, and link generation
+
+### Changed — /check-email security model
+
+- Email displayed on /check-email now comes from an httpOnly cookie (`kolonaki_pending_signup_email`) set by `signup()` / `login()`, NOT from the URL. Closes an open-relay vector where `/check-email?email=victim@example.com` could be shared to trigger Resend on arbitrary addresses
+- `app/login/actions.ts` — new `resendSignupConfirmation` server action wired to the Resend button. Uses the cookie email, never accepts user input. Returns generic messages on failure to prevent account enumeration
+- `app/check-email/messages.ts` — allowlisted message keys (`msg=resend_success`, `msg=resend_error`, etc.) replace free-text URL params. Prevents reflected phishing copy from being injected into the page
+- `app/check-email/url-cleanup.tsx` — strips message keys from the URL after read so refreshes don't re-show the banner and links don't leak status to referers
+- Updated copy: "Don't see it? Check your spam folder, or tap Resend." (drops the directional "above" reference now that the sniper button sits above the resend form)
+
+### Added — Cookie helpers
+
+- `lib/auth/pending-signup-email.ts` — `setPendingSignupEmail`, `readPendingSignupEmail`, `clearPendingSignupEmail`. httpOnly, secure-in-prod, SameSite=Lax, 24h TTL covering the typical confirmation window
+
 ## [0.2.0] — 2026-04-11
 
 ### Added — PLG Activation Layer (Phase 1A + 1B)
