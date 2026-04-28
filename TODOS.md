@@ -164,6 +164,46 @@
 
 ---
 
+## P3 — Resend Hardening Follow-ups (from /qa 2026-04-28)
+
+### Real-Supabase smoke test for resendSignupConfirmation
+
+**What:** One manual signup with a fresh test email against the live Supabase project, then click Resend on /check-email and verify the second confirmation email actually arrives in the inbox.
+**Why:** /qa verified the page logic, the cookie binding, the URL allowlist, and the end-to-end click flow with a fake cookie email — but did not burn a real test address against Supabase. The `auth.resend({ email, type: "signup", options: { emailRedirectTo } })` call shape is structurally identical to the existing production-tested `resendOtp`, so confidence is high, but real email delivery is unverified.
+**Pros:** Belt-and-suspenders verification before users hit it. ~5 min of manual work.
+**Cons:** Burns one test email address. Supabase rate-limits the address for ~60s after.
+**Context:** Use a `+test` alias on a real inbox you control. Watch the Supabase auth logs to confirm the resend hits the project.
+**Effort:** XS (human: ~5min / CC: N/A — needs real inbox). **Priority:** P3 (nice-to-have, not blocking ship).
+
+### httpOnly cookie attribute prod-verification
+
+**What:** After deploy, open DevTools on /check-email after a real signup and inspect the `Set-Cookie` response header for `kolonaki_pending_signup_email`. Confirm `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, `Max-Age=86400`.
+**Why:** `cookieStore.set(..., { httpOnly: true, secure: process.env.NODE_ENV === "production", ... })` is the standard Next.js cookie API and the build type-checks, so it's correct in code. /qa couldn't verify the actual response header because gstack browse sets test cookies without httpOnly. One real-browser inspection closes the loop.
+**Pros:** Confirms the security property holds end-to-end. Prevents a Next.js version bump from silently dropping an attribute.
+**Cons:** Manual one-time check.
+**Context:** Cookie helpers in `lib/auth/pending-signup-email.ts`. Triggered by signup() / login() in `app/login/actions.ts`.
+**Effort:** XS (human: ~2min). **Priority:** P3.
+
+### Cloudflare DNS leak in SniperLinkButton
+
+**What:** SniperLinkButton fetches MX records via `https://cloudflare-dns.com/dns-query?name={domain}&type=MX` on every check-email page render. Sends the user's email *domain* (not full email) to Cloudflare DNS.
+**Why:** Defense in depth. Currently any check-email visit tells Cloudflare which provider the user uses. Most users don't care, but for high-privacy contexts it's a third-party leak.
+**Pros:** Three concrete fixes possible: (a) static heuristic for top 5 providers (Gmail/Outlook/Yahoo/iCloud/Proton ≈ 80% coverage), (b) move DoH lookup server-side via a route handler so user IP isn't tied to the query, (c) accept it.
+**Cons:** Static heuristic loses long-tail provider support. Server-side adds latency.
+**Context:** `app/check-email/sniper-link-button.tsx` + `lib/sniper-link/index.ts`. Out of scope of the resend hardening thread — flagged here so it doesn't get forgotten.
+**Effort:** S (human: ~30min / CC: ~10min). **Priority:** P3.
+
+### Vitest regression test for resendSignupConfirmation
+
+**What:** One Vitest unit test mirroring the existing `app/login/__tests__/signup.test.js` shape: mock the Supabase client + cookies(), assert that the action redirects to `/check-email?msg=resend_success` on Supabase success and `/check-email?msg=resend_error` on failure, and never echoes `error.message` back into the redirect.
+**Why:** Existing `resendOtp` has no test either, so this isn't a regression — but the new action has more security-critical branches (cookie read, generic-message guarantee). A regression test locks in the "no error.message echo" property so a future "helpful" refactor can't reintroduce account enumeration.
+**Pros:** Locks in the security property. Mirrors existing patterns. ~25 lines.
+**Cons:** Adds maintenance surface. Mocks Next.js redirect + Supabase client.
+**Context:** Existing test file: `app/login/__tests__/signup.test.js`. New action: `app/login/actions.ts:resendSignupConfirmation`. Test shape: arrange (set cookie, mock supabase.auth.resend), act (call action), assert (redirect path, message key, no PII in URL).
+**Effort:** S (human: ~30min / CC: ~10min). **Priority:** P3.
+
+---
+
 ## QA Deferred — 2026-04-24
 
 ### Hydration mismatch on input forms (ISSUE-002)
