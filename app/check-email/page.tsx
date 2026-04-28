@@ -1,20 +1,21 @@
 import config from "@/kolonaki.config";
 import { resendSignupConfirmation } from "@/app/login/actions";
+import { readPendingSignupEmail } from "@/lib/auth/pending-signup-email";
 import { Logo } from "@/components/logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldDescription } from "@/components/ui/field";
 
+import { lookupMessage } from "./messages";
 import { ResendButton } from "./resend-button";
 import { SniperLinkButton } from "./sniper-link-button";
+import { UrlCleanup } from "./url-cleanup";
 
 type CheckEmailPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function readParam(
-  value: string | string[] | undefined,
-): string | null {
+function readParam(value: string | string[] | undefined): string | null {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value[0] ?? null;
   return null;
@@ -25,18 +26,16 @@ export default async function CheckEmailPage({
 }: CheckEmailPageProps) {
   const resolvedParams = await searchParams;
 
-  const message = readParam(resolvedParams?.message);
-  const email = readParam(resolvedParams?.email);
-  const rawStatus = readParam(resolvedParams?.status);
-  const status: "success" | "error" | null =
-    rawStatus === "success" || rawStatus === "error" ? rawStatus : null;
+  // Email comes from an httpOnly cookie set by signup() / login() — NOT from
+  // the URL. This blocks the open-relay vector where an attacker shares
+  // /check-email?email=victim@example.com to trigger a resend to an arbitrary
+  // address. The page falls back to a generic UI when the cookie is absent.
+  const email = await readPendingSignupEmail();
 
-  // When a resend just succeeded/failed we surface that in an Alert and keep
-  // the default body copy ("we sent you a link to X"). When status is unset
-  // and a message was passed (e.g. unconfirmed-email login redirect from
-  // app/login/actions.ts), the message replaces the default body — same as
-  // the previous behaviour.
-  const showInlineMessage = !status && Boolean(message);
+  // Only allowlisted message keys are honoured. Free-text URL params would
+  // otherwise let an attacker render phishing copy ("Your account was
+  // suspended. Call 1-555-SCAM.") inside our Card with our Logo.
+  const msg = lookupMessage(readParam(resolvedParams?.msg));
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
@@ -47,22 +46,24 @@ export default async function CheckEmailPage({
             <CardContent className="flex flex-col gap-4 p-6 text-center">
               <h1 className="text-2xl font-bold">Check your email</h1>
 
-              {status && message ? (
+              {msg && (msg.tone === "success" || msg.tone === "error") ? (
                 <Alert
-                  variant={status === "success" ? "success" : "destructive"}
+                  variant={msg.tone === "success" ? "success" : "destructive"}
                   aria-live="polite"
                 >
-                  <AlertDescription>{message}</AlertDescription>
+                  <AlertDescription>{msg.body}</AlertDescription>
                 </Alert>
               ) : null}
 
-              {showInlineMessage ? (
-                <p className="text-muted-foreground text-sm">{message}</p>
+              {msg && msg.tone === "info" ? (
+                <p className="text-muted-foreground text-sm">{msg.body}</p>
               ) : (
                 <p className="text-muted-foreground text-sm">
                   We sent you a confirmation link to <br />
                   {email ? (
-                    <strong className="text-foreground">{email}</strong>
+                    <strong className="text-foreground break-all">
+                      {email}
+                    </strong>
                   ) : (
                     "your email"
                   )}
@@ -80,7 +81,6 @@ export default async function CheckEmailPage({
 
               {email ? (
                 <form action={resendSignupConfirmation}>
-                  <input type="hidden" name="email" value={email} />
                   <ResendButton />
                 </form>
               ) : null}
@@ -98,12 +98,16 @@ export default async function CheckEmailPage({
                   </>
                 )}
                 <br />
-                Already have an account? <a href="/login">Sign in</a>
+                Already have an account?{" "}
+                <a href="/login" rel="noreferrer">
+                  Sign in
+                </a>
               </FieldDescription>
             </CardContent>
           </Card>
         </div>
       </div>
+      <UrlCleanup />
     </div>
   );
 }

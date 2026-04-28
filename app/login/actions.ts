@@ -4,6 +4,10 @@ import { createClient } from "../../utils/supabase/server";
 import { sendKolonakiEmail } from "@/lib/kolonaki/email";
 import { acceptInvitation, completeSegmentation } from "@/lib/kolonaki/actions";
 import { posthog } from "@/lib/posthog/server";
+import {
+  readPendingSignupEmail,
+  setPendingSignupEmail,
+} from "@/lib/auth/pending-signup-email";
 
 export type FieldStatus = "idle" | "error" | "success";
 
@@ -64,15 +68,11 @@ export async function login(
       error.message?.toLowerCase().includes("email not confirmed");
 
     if (isUnconfirmed) {
-      const params = new URLSearchParams({
-        message:
-          "Please confirm your email before signing in. Check your inbox for the confirmation link.",
-      });
       if (credentials.email) {
-        params.set("email", credentials.email);
+        await setPendingSignupEmail(credentials.email);
       }
       const { redirect } = await import("next/navigation");
-      redirect(`/check-email?${params.toString()}`);
+      redirect(`/check-email?msg=unconfirmed_login`);
     }
 
     return {
@@ -178,6 +178,9 @@ export async function signup(
       error.message?.toLowerCase().includes("user already registered");
 
     if (isDuplicate) {
+      // Bind the cookie to the typed email so the Resend button works for
+      // duplicate-signup users without revealing the duplicate state via URL.
+      await setPendingSignupEmail(emailValue);
       const { redirect } = await import("next/navigation");
       redirect("/check-email");
     }
@@ -201,8 +204,9 @@ export async function signup(
     });
   }
 
+  await setPendingSignupEmail(emailValue);
   const { redirect } = await import("next/navigation");
-  redirect(`/check-email?email=${encodeURIComponent(emailValue)}`);
+  redirect("/check-email");
 
   return {
     status: "success",
@@ -357,23 +361,24 @@ export async function resendOtp(formData: FormData) {
   redirect(`/otp?${params.toString()}`);
 }
 
-export async function resendSignupConfirmation(formData: FormData) {
-  const supabase = await createClient();
-
-  const rawEmail = formData.get("email");
-  const email = typeof rawEmail === "string" ? rawEmail.trim() : "";
-
+// Resend the signup confirmation email. The email is read from a server-set
+// httpOnly cookie, NOT from formData — this prevents an attacker who shares
+// /check-email?email=victim@example.com from triggering Supabase to deliver a
+// confirmation email to an arbitrary address from our verified sender.
+//
+// Outcomes are collapsed to a single generic message regardless of Supabase's
+// response, so error.message ("user not found", "already confirmed", "rate
+// limited") cannot be used to enumerate which addresses have pending accounts.
+export async function resendSignupConfirmation() {
   const { redirect } = await import("next/navigation");
 
-  if (!email) {
-    const params = new URLSearchParams({
-      status: "error",
-      message: "Missing email address. Please sign up again.",
-    });
+  const email = (await readPendingSignupEmail()) ?? "";
 
-    redirect(`/check-email?${params.toString()}`);
+  if (!email) {
+    redirect(`/check-email?msg=resend_error`);
   }
 
+  const supabase = await createClient();
   const { error } = await supabase.auth.resend({
     email,
     type: "signup",
@@ -383,33 +388,19 @@ export async function resendSignupConfirmation(formData: FormData) {
   });
 
   if (error) {
-    console.error(RESEND_SIGNUP_ERROR_PREFIX, error);
-
-    const params = new URLSearchParams({
-      status: "error",
-      message: error.message ?? "Unable to resend the confirmation email.",
-      email,
-    });
-
-    redirect(`/check-email?${params.toString()}`);
+    console.error(RESEND_SIGNUP_ERROR_PREFIX, error.code ?? error.status ?? "unknown");
+    redirect(`/check-email?msg=resend_error`);
   }
 
-  // User is unauthenticated at this point, so user.id is unavailable. Use email
-  // as distinctId — PostHog will merge once verification completes (matches
-  // the resendOtp pattern above).
+  // User is unauthenticated at this point. Use email as distinctId — PostHog
+  // will merge once verification completes (matches the resendOtp pattern).
   posthog.capture({
     distinctId: email,
     event: "signup_email_resent",
     properties: { email },
   });
 
-  const params = new URLSearchParams({
-    status: "success",
-    message: "Confirmation email sent. Check your inbox.",
-    email,
-  });
-
-  redirect(`/check-email?${params.toString()}`);
+  redirect(`/check-email?msg=resend_success`);
 }
 
 export async function resetPassword(
