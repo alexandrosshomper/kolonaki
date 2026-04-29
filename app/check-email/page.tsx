@@ -79,12 +79,6 @@ export default async function CheckEmailPage({
                 />
               ) : null}
 
-              {email ? (
-                <form action={resendSignupConfirmation}>
-                  <ResendButton />
-                </form>
-              ) : null}
-
               <FieldDescription className="text-center">
                 {email ? (
                   "Don't see it? Check your spam folder, or tap Resend."
@@ -97,7 +91,15 @@ export default async function CheckEmailPage({
                     .
                   </>
                 )}
-                <br />
+              </FieldDescription>
+
+              {email ? (
+                <form action={resendSignupConfirmation}>
+                  <ResendButton />
+                </form>
+              ) : null}
+
+              <FieldDescription className="text-center">
                 Already have an account?{" "}
                 <a href="/login" rel="noreferrer">
                   Sign in
