@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.1] — 2026-04-29
+
+### Changed
+
+- `/check-email`: reordered the layout so the "Don't see it? Check your spam folder, or tap Resend." instruction appears above the Resend button. Reading order now matches action order — read the prompt, then take the action — instead of the user clicking the button first and noticing the instruction below
+
+### Docs
+
+- Expanded `TODOS.md` Marketing website section from empty placeholder headers into actionable entries (homepage, features overview, features subpages, pricing, about, legal) with full What/Why/Pros/Cons/Context/Effort/Priority structure
+- Added `P3 — Post-Merge Canary for v0.3.0` (production smoke test for resend + sniper link) and `P4 — Operational` items (VERSION-vs-package.json convention, MCP stability audit)
+
 ## [0.3.0] — 2026-04-28
 
 ### Added — Sniper Link on /check-email

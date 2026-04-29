@@ -121,19 +121,96 @@
 **Context:** Use Next.js `metadata` API for per-page meta/OG. Add `app/sitemap.ts` and `app/robots.ts`. Add `Organization` + `SoftwareApplication` JSON-LD on landing page. Run Lighthouse CI in the deployment pipeline to gate on CWV regressions. Reference `docs/marketing/*.md` (above) for consistent keyword usage across pages.
 **Effort:** M (human: ~6h / CC: ~45min). **Priority:** P3. **Depends on:** Marketing site page markdowns.
 
-## Marketing website
+## P3 — Marketing Website
 
-### Homepage complete with content and best practices
+### Homepage with full content and best practices
+
+**What:** Build the public landing page at `app/(marketing)/page.tsx` (or `app/page.tsx` if no marketing group). Hero, three-tier value props, social proof, single primary CTA pointing at signup.
+**Why:** Right now `/` redirects authenticated users to `/dashboard` and unauthenticated users to `/login`. There is no public homepage. Anyone arriving from a tweet, link, or search hits a login wall and bounces.
+**Pros:** Unblocks all paid and organic acquisition. Required before SEO work makes sense.
+**Cons:** Real copy needs a design pass and probably brand/voice work via /design-consultation.
+**Context:** Use shadcn primitives + Tailwind tokens already in `app/globals.css`. Reference the Garry Tan voice rules in CLAUDE.md (no AI vocabulary, lead with the point, concrete specifics). Coordinate with the "Marketing site page markdowns" item above so the Markdown source-of-truth and the JSX stay synced.
+**Effort:** L (human: ~2d / CC: ~3h). **Priority:** P3.
 
 ### Features page
 
+**What:** `/features` overview page summarizing the four core capabilities (segmentation wizard, checklist, aha moment, workspace invite) with one screenshot or animated demo per feature, each linking to a dedicated subpage.
+**Why:** Activation boilerplates are abstract — buyers need to see what each piece does before they install. A single overview page with strong visuals beats reading the README.
+**Pros:** Sells the boilerplate. Anchor for SEO long-tail ("user activation boilerplate", "PLG onboarding template").
+**Cons:** Needs real screenshots/recordings of each feature working — probably ~half a day of asset production.
+**Context:** Pull screenshots from /qa runs (already captured high-quality ones at `.gstack/qa-reports/`). Use `next/image` with priority loading on the first feature card for LCP.
+**Effort:** M (human: ~1d / CC: ~1h). **Priority:** P3.
+
 ### Features subpages
 
-### Pricing PAge
+**What:** One page per core feature: `/features/segmentation`, `/features/checklist`, `/features/aha`, `/features/invite`. Each covers: what it does, how it works under the hood, configuration knobs in `kolonaki.config.ts`, code snippets.
+**Why:** Subpages are the SEO workhorses. Each ranks for a specific intent and links back to the buy/install CTA. Also serves as developer-facing documentation.
+**Pros:** SEO + docs in one. Reduces support burden.
+**Cons:** ~4 pages of writing. Must stay in sync with `kolonaki.config.ts` schema.
+**Context:** Same template across all four. Sections: Overview, How it works, Configuration, Customization, Live demo or screenshot. Cross-link aggressively.
+**Effort:** L (human: ~2d / CC: ~2h). **Priority:** P3. **Depends on:** Features overview page.
 
-### About us page
+### Pricing page
+
+**What:** `/pricing` page with the boilerplate's licensing/payment model. Even if the boilerplate is free or open-source, name that explicitly with a "Why free?" framing.
+**Why:** A pricing page is one of the most-visited pages on any SaaS site, even when the answer is "$0". Visitors arrive with a price-shaped question — refusing to answer creates friction.
+**Pros:** Removes a major buying objection. Required for SEO ("kolonaki pricing"). Easy page.
+**Cons:** Needs a clear answer first — is this free, paid, dual-licensed, sponsorship-backed? That's a business decision.
+**Context:** Standard pattern: 1-3 tier cards, FAQ accordion at the bottom. If free/OSS: include "What's included" and "What's not" honest framings. shadcn `Card` + `Accordion` cover the components.
+**Effort:** S (human: ~3h / CC: ~30min). **Priority:** P3. **Depends on:** Licensing/pricing decision.
+
+### About page
+
+**What:** `/about` page covering: who built this, why, what philosophy drives the activation patterns. Short and personal.
+**Why:** People buy from people. An About page with a real face and a real reason builds trust that no marketing copy can.
+**Pros:** Differentiator vs. faceless boilerplate competitors. Cheap to write.
+**Cons:** Requires the founder to actually write something authentic, not corporate.
+**Context:** ~300-500 words. Reference the activation philosophy: PLG, aha moments, the loneliness of the empty-state problem. Photo + signature optional but high-impact.
+**Effort:** XS (human: ~1h / CC: ~15min). **Priority:** P3.
 
 ### Legal pages
+
+**What:** `/privacy`, `/terms`, and `/cookies` — required boilerplate legal pages.
+**Why:** Required for GDPR/CCPA compliance and most app-store-style listings. Stripe, Vercel, and Supabase all assume the deploying app has these.
+**Pros:** One-time setup. Required for any production launch.
+**Cons:** Should be reviewed by a lawyer before going live in regulated markets. Generic templates carry risk.
+**Context:** Start from a template (Termly, Iubenda, or open-source equivalents like termsfeed). Cover: data collected (PostHog, Supabase Auth, Resend), cookie usage (`kolonaki_pending_signup_email`, PostHog session ID), retention policies, third-party processors. Update when adding new services.
+**Effort:** S (human: ~2h with template / CC: ~30min). **Priority:** P3.
+
+---
+
+## P3 — Post-Merge Canary for v0.3.0
+
+### Production smoke test for resend + sniper link
+
+**What:** After PR #41 merges and Vercel deploys, run a real-browser smoke test on the production URL: signup with a fresh email, verify check-email page renders correctly, verify the sniper link button shows for the email's provider, click it and confirm the deep link opens the right inbox view, hit the resend button and confirm a second email arrives.
+**Why:** /qa ran against localhost with a fake cookie email. Production behavior may differ on: cookie domain attributes (different on `*.vercel.app` vs custom domain), Supabase email send latency, Cloudflare DoH availability from Vercel's edge, and CDN caching of the static page bundle.
+**Pros:** Closes the loop on a security-sensitive flow before users touch it.
+**Cons:** Burns one real email address (use a `+test` alias).
+**Context:** Use the `/canary` skill. Capture: Set-Cookie response header for `kolonaki_pending_signup_email`, network timing for the MX lookup, PostHog `sniper_link_clicked` event firing with the right `provider` + `recipient_domain`, and inbox confirmation that the resend email arrived.
+**Effort:** XS (human: ~10min). **Priority:** P3. **Depends on:** PR #41 merged and deployed.
+
+---
+
+## P4 — Operational
+
+### VERSION file vs package.json convention
+
+**What:** Decide and document: does this project use a `VERSION` file (per gstack /ship convention) or `package.json` as the canonical version source? Currently `package.json` is canonical and there is no `VERSION` file.
+**Why:** The /ship skill's idempotency check (Step 12) compares `VERSION` against `package.json.version`. With `VERSION` missing it falls back to `0.0.0.0`, which makes `package.json: 0.3.0` look like `DRIFT_UNEXPECTED` and would halt /ship in some code paths. It worked this run because the script tolerated the missing file, but a future gstack upgrade could tighten that check.
+**Pros:** Pick one and document. Either: (a) create a `VERSION` file mirroring `package.json.version` and add a one-line check or pre-commit hook to keep them synced, or (b) document in CLAUDE.md that this project uses package.json only and mark VERSION operations no-op for /ship.
+**Cons:** Two-source-of-truth (option a) means yet another file to remember to bump. Single source (option b) means fighting the gstack convention.
+**Context:** Gstack /ship Step 12 lives at `~/.claude/skills/gstack/ship/SKILL.md`. The `kolonaki` boilerplate is meant to be cloned, so whatever convention is documented should ship with the boilerplate.
+**Effort:** XS (human: ~10min / CC: ~5min). **Priority:** P4 (works today, only matters if /ship tightens).
+
+### Resend MCP stability audit
+
+**What:** Audit MCP server stability — during this session the Resend, Firebase, GitHub, Context7, and shadcn MCPs all disconnected mid-conversation (per the system reminder near the end). Track frequency in `.claude/settings.json`-managed MCP logs and decide whether to remove the flaky ones from the boilerplate config.
+**Why:** A disconnected MCP is dead weight in the prompt — Claude sees the tool name, can't call it, wastes context budget. Flaky MCPs are worse than no MCPs.
+**Pros:** Cleaner agent context. Faster prompts. Less surprise when a workflow halfway depends on an MCP.
+**Cons:** Removing useful-when-they-work MCPs costs capability. May just be a transient session issue from this machine.
+**Context:** Check `~/Library/Logs/Claude/` (or equivalent) for MCP connection error patterns. If it's specific MCPs failing repeatedly, file issues upstream and pin to the next minor version.
+**Effort:** S (human: ~30min / CC: ~15min). **Priority:** P4 (only matters if it keeps happening).
 
 ---
 
