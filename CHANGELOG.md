@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] — 2026-04-30
+
+### Fixed
+
+- Suppressed noisy `[PostHog.js] "Bad HTTP status: 500 Internal Server Error"` console errors in `npm run dev`. PostHog client now only initializes when `NODE_ENV === "production"` or when the new opt-in `NEXT_PUBLIC_POSTHOG_DEV=1` flag is set. Server-side captures via `posthog-node` are unaffected, so production analytics continue to work normally and dev signups no longer pollute prod dashboards or burn event budget
+
 ## [0.3.1] — 2026-04-29
 
 ### Changed
