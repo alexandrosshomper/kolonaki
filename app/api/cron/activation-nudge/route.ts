@@ -5,7 +5,10 @@ import config from "@/kolonaki.config";
 import type { UserActivationMeta } from "@/lib/kolonaki/types";
 
 // Configure in vercel.json:
-// { "crons": [{ "path": "/api/cron/activation-nudge", "schedule": "0 * * * *" }] }
+// { "crons": [{ "path": "/api/cron/activation-nudge", "schedule": "0 9 * * *" }] }
+// Vercel Hobby plan only supports daily crons. The 24h stale cutoff below means
+// daily cadence is sufficient — every user past the threshold gets nudged on the
+// next 9am UTC tick. Pro plan can move back to hourly if needed.
 //
 // auth.users is in the auth schema and cannot be queried via supabase.from().
 // Uses supabase.auth.admin.listUsers() (service role required) with in-process filtering.
