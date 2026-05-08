@@ -21,6 +21,17 @@ export type ResetPasswordFormState = {
   shouldResetPasswords: boolean;
 };
 
+export type ProfileFormState = {
+  status: FieldStatus;
+  message: string | null;
+  fullNameStatus: FieldStatus;
+};
+
+const PROFILE_UPSERT_ERROR_PREFIX = "Supabase profile upsert error:";
+const FULL_NAME_REQUIRED_MESSAGE = "Please enter your full name.";
+const FULL_NAME_TOO_LONG_MESSAGE =
+  "Full name must be 80 characters or fewer.";
+
 async function revalidateRootLayout() {
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/otp", "layout");
@@ -204,7 +215,7 @@ export async function verifyOtp(formData: FormData) {
   }
 
   await revalidateRootLayout();
-  redirect("/dashboard");
+  redirect("/onboarding/profile");
 }
 
 export async function resendOtp(formData: FormData) {
@@ -317,5 +328,76 @@ export async function resetPassword(
     passwordStatus: "success",
     confirmPasswordStatus: "success",
     shouldResetPasswords: true,
+  };
+}
+
+export async function completeProfile(
+  prevState: ProfileFormState,
+  formData: FormData
+): Promise<ProfileFormState> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    const { redirect } = await import("next/navigation");
+    redirect("/login");
+  }
+
+  const fullNameEntry = formData.get("full_name");
+  const avatarUrlEntry = formData.get("avatar_url");
+
+  const fullName =
+    typeof fullNameEntry === "string" ? fullNameEntry.trim() : "";
+  const avatarUrl =
+    typeof avatarUrlEntry === "string" && avatarUrlEntry.length > 0
+      ? avatarUrlEntry
+      : null;
+
+  if (fullName.length < 2) {
+    return {
+      status: "error",
+      message: FULL_NAME_REQUIRED_MESSAGE,
+      fullNameStatus: "error",
+    };
+  }
+
+  if (fullName.length > 80) {
+    return {
+      status: "error",
+      message: FULL_NAME_TOO_LONG_MESSAGE,
+      fullNameStatus: "error",
+    };
+  }
+
+  const { error } = await supabase.from("profiles").upsert({
+    id: user.id,
+    full_name: fullName,
+    avatar_url: avatarUrl,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error(PROFILE_UPSERT_ERROR_PREFIX, error);
+    return {
+      status: "error",
+      message:
+        error.message ?? "Unable to save your profile. Please try again.",
+      fullNameStatus: "idle",
+    };
+  }
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/dashboard", "layout");
+
+  const { redirect } = await import("next/navigation");
+  redirect("/dashboard");
+
+  return {
+    status: "success",
+    message: null,
+    fullNameStatus: "idle",
   };
 }

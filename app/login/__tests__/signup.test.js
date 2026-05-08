@@ -1,17 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 
-mock.module("next/cache", {
-  exports: {
-    revalidatePath: () => {},
-  },
-});
-
-mock.module("next/navigation", {
-  exports: {
-    redirect: () => {
-      throw new Error("redirect should not be called during tests");
-    },
+mock.module("../../../utils/supabase/server.js", {
+  namedExports: {
+    createClient: async () => ({
+      auth: {
+        signUp: async () => ({ error: null }),
+      },
+    }),
   },
 });
 
